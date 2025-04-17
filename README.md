@@ -4,6 +4,7 @@
 
 - nvim configuration (.config/nvim)
 - zsh configuration (.zshrc)
+- tmux configuration (.tmux.conf)
 
 ## How to
 
@@ -25,3 +26,16 @@ Move to dotfiles directory and create symlink
 cd ~/dotfiles
 stow .
 ```
+
+### .zshrc
+
+- oh-my-zsh needs to be installed
+
+- powerlevel10k needs to be installed
+
+* most of the plugins needs to be installed in $ZSH_CUSTOM/plugins
+
+### .tmux.conf
+
+- tmux needs to be installed
+- tpm needs to be installed
