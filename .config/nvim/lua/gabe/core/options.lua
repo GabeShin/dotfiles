@@ -42,3 +42,6 @@ opt.swapfile = false
 
 -- column limit
 opt.colorcolumn = "80" -- show a vertical line at column 80
+
+-- scrolloff
+opt.scrolloff = 8

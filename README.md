@@ -3,8 +3,14 @@
 ## In this repository
 
 - nvim configuration (.config/nvim)
+
 - zsh configuration (.zshrc)
+
 - tmux configuration (.tmux.conf)
+
+* aerospace configuration (.aerospace.toml)
+
+- sketchybar configuration (.config/sketchybar)
 
 ## How to
 
@@ -39,3 +45,23 @@ stow .
 
 - tmux needs to be installed
 - tpm needs to be installed
+
+# sketchybar
+
+- i might be missing some required installs
+- install [sketchybar](https://felixkratz.github.io/SketchyBar/setup)
+- install some other required stuffs
+
+```terminal
+brew install --cask font-sf-pro
+brew install --cask sf-symbols
+
+brew install jq
+brew install font-sketchybar-app-font # not sure if this is required
+
+```
+
+### .aerospace.toml
+
+- [aerospace](https://github.com/nikitabobko/AeroSpace) needs to be installed
+-
