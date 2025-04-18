@@ -40,8 +40,8 @@ keymap.set("n", "<leader>tf", "<cmd>tabnew %<CR>", { desc = "Open current buffer
 -- navigation helpers
 keymap.set("n", "<leader>j", "<C-d>zz")
 keymap.set("n", "<leader>k", "<C-u>zz")
-keymap.set("n", "<leader>h", "<cmd>bp<CR>", { desc = "Go to previous buffer" }) -- go to previous buffer
-keymap.set("n", "<leader>l", "<cmd>bn<CR>", { desc = "Go to next buffer" }) -- go to next buffer
+keymap.set("n", "<leader>h", "<C-o>zz", { desc = "Go to previous jumplist" }) -- go to previous buffer
+keymap.set("n", "<leader>l", "<C-i>zz", { desc = "Go to next jumplist" }) -- go to next buffer
 keymap.set("n", "n", "nzzzv")
 keymap.set("n", "N", "Nzzzv")
 
