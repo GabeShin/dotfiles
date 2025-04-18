@@ -8,6 +8,6 @@ return {
 		end
 
 		vim.cmd("colorscheme kanagawa-dragon")
-		-- MakeBackgroundTransparent()
+		MakeBackgroundTransparent()
 	end,
 }

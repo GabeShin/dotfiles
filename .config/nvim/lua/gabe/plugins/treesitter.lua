@@ -33,6 +33,7 @@ return {
 				"query",
 				"vimdoc",
 				"c",
+				"bash",
 			},
 			modules = {},
 			sync_install = false,
