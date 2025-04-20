@@ -7,6 +7,57 @@ return {
 		"nvim-tree/nvim-web-devicons",
 		"folke/todo-comments.nvim",
 	},
+	keys = {
+		{
+			"<leader>ff",
+			function()
+				require("telescope.builtin").find_files()
+			end,
+			desc = "Find Files",
+		},
+		{
+			"<leader>fg",
+			function()
+				require("telescope.builtin").live_grep()
+			end,
+			desc = "Live Grep",
+		},
+		{
+			"<leader>fb",
+			function()
+				require("telescope.builtin").buffers()
+			end,
+			desc = "Find Buffers",
+		},
+		{
+			"<leader>fo",
+			function()
+				require("telescope.builtin").man_pages()
+			end,
+			desc = "Map Pages",
+		},
+		{
+			"<leader>fr",
+			function()
+				require("telescope.builtin").oldfiles()
+			end,
+			desc = "Recent Files",
+		},
+		{
+			"<leaderf.fs",
+			function()
+				require("telescope.builtin").grep_string()
+			end,
+			desc = "Find String Under Cursor",
+		},
+		{
+			"<leader>ft",
+			function()
+				require("telescope").extensions.todo_comments.todo()
+			end,
+			desc = "Find Todos",
+		},
+	},
 	config = function()
 		local telescope = require("telescope")
 		local actions = require("telescope.actions")
@@ -18,15 +69,5 @@ return {
 		})
 
 		telescope.load_extension("fzf")
-
-		-- set keymaps
-		local keymap = vim.keymap -- for conciseness
-
-		keymap.set("n", "<leader>ff", "<cmd>Telescope find_files<cr>", { desc = "Fuzzy find files in cwd" })
-		keymap.set("n", "<leader>fg", "<cmd>Telescope live_grep<cr>", { desc = "Find string in cwd" })
-		keymap.set("n", "<leader>fb", "<cmd>Telescope buffers<cr>", { desc = "Find buffers in cwd" })
-		keymap.set("n", "<leader>fr", "<cmd>Telescope oldfiles<cr>", { desc = "Fuzzy find recent files" })
-		keymap.set("n", "<leader>fs", "<cmd>Telescope grep_string<cr>", { desc = "Find string under cursor in cwd" })
-		keymap.set("n", "<leader>ft", "<cmd>TodoTelescope<cr>", { desc = "Find todos" })
 	end,
 }
