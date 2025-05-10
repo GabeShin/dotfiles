@@ -74,12 +74,7 @@ return {
 
 		local keymap = vim.keymap
 
-		keymap.set(
-			"n",
-			"<leader>on",
-			":ObsidianNewFromTemplate note-template<CR>",
-			{ desc = "Create new note from template" }
-		)
+		keymap.set("n", "<leader>on", ":ObsidianNewFromTemplate<CR>", { desc = "Create new note from template" })
 		keymap.set("n", "<leader>od", ":ObsidianToday<CR>", { desc = "Open daily notes" })
 		keymap.set("n", "<leader>ol", ":ObsidianToday -7<CR>", { desc = "Open last week's note" })
 		keymap.set("n", "<leader>ot", ":ObsidianTemplate<CR>", { desc = "Apply template" })

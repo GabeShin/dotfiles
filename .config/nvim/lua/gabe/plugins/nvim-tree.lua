@@ -12,7 +12,7 @@ return {
 
 		nvimtree.setup({
 			view = {
-				width = 40,
+				width = 30,
 				relativenumber = true,
 			},
 			-- change folder arrow icons
@@ -28,6 +28,7 @@ return {
 						},
 					},
 				},
+				group_empty = true,
 			},
 			-- disable window_picker for
 			-- explorer to work well with

@@ -19,6 +19,8 @@ require("lazy").setup({
 	{ import = "gabe.plugins.llm" },
 	{ import = "gabe.plugins.mini" },
 	{ import = "gabe.plugins.note" },
+	{ import = "gabe.plugins.debug" },
+	{ import = "gabe.plugins.python" },
 }, {
 	checker = {
 		enabled = true,
