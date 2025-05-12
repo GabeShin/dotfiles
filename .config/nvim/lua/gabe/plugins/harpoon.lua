@@ -7,9 +7,9 @@ return {
 	end,
 	keys = {
 		{
-			"<leader>a",
+			"<leader>m",
 			function()
-				require("harpoon"):list():append()
+				require("harpoon"):list():add()
 			end,
 			desc = "harpoon file",
 		},
