@@ -1,34 +1,37 @@
 return {
-	"mason-org/mason.nvim",
-	dependencies = {
-		"mason-org/mason-lspconfig.nvim",
-		"neovim/nvim-lspconfig",
-	},
-	config = function()
-		-- config mason
-		require("mason").setup({
-			ui = {
-				icons = {
-					package_installed = "✓",
-					package_pending = "➜",
-					package_uninstalled = "✗",
+	{
+		"williamboman/mason.nvim",
+		-- your file no longer shadows because it's named `mason-config.lua`
+		config = function()
+			require("mason").setup({
+				ui = {
+					icons = {
+						package_installed = "✓",
+						package_pending = "➜",
+						package_uninstalled = "✗",
+					},
 				},
-			},
-		})
-
-		-- config mason-lspconfig
-		require("mason-lspconfig").setup({
-			ensure_installed = {
-				"ts_ls",
-				"pyright",
-				"html",
-				"cssls",
-				"tailwindcss",
-				"lua_ls",
-				"graphql",
-				"emmet_ls",
-				"prismals",
-			},
-		})
-	end,
+			})
+		end,
+	},
+	{
+		"williamboman/mason-lspconfig.nvim",
+		after = "mason.nvim",
+		dependencies = { "neovim/nvim-lspconfig" },
+		config = function()
+			require("mason-lspconfig").setup({
+				ensure_installed = {
+					"tsserver",
+					"pyright",
+					"html",
+					"cssls",
+					"tailwindcss",
+					"lua_ls",
+					"graphql",
+					"emmet_ls",
+					"prismals",
+				},
+			})
+		end,
+	},
 }
