@@ -1,19 +1,9 @@
 return {
 	{
 		"mfussenegger/nvim-dap",
-		dependencies = {
-			"rcarriga/nvim-dap-ui",
-			"theHamsta/nvim-dap-virtual-text",
-		},
+
 		config = function()
 			local dap = require("dap")
-			local dapui = require("dapui")
-
-			require("nvim-dap-virtual-text").setup({
-				commented = true,
-			})
-
-			dapui.setup()
 
 			vim.fn.sign_define("DapBreakpoint", {
 				text = "",
@@ -35,11 +25,6 @@ return {
 				linehl = "Visual",
 				numhl = "DiagnosticSignWarn",
 			})
-
-			-- Automatically open/close DAP UI
-			dap.listeners.after.event_initialized["dapui_config"] = function()
-				dapui.open()
-			end
 
 			local opts = { noremap = true, silent = true }
 
@@ -71,11 +56,6 @@ return {
 			-- Keymap to terminate debugging
 			vim.keymap.set("n", "<leader>dq", function()
 				require("dap").terminate()
-			end, opts)
-
-			-- Toggle DAP UI
-			vim.keymap.set("n", "<leader>du", function()
-				dapui.toggle()
 			end, opts)
 		end,
 	},

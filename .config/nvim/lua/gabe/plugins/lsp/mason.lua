@@ -21,12 +21,20 @@ return {
 		config = function()
 			require("mason-lspconfig").setup({
 				ensure_installed = {
-					"tsserver",
+					-- javascript
+					"ts_ls",
+					"tailwindcss",
+					-- python
 					"pyright",
+					"black",
+					"ruff",
+					"mypy",
+					-- lua
+					"lua_ls",
+					-- web
 					"html",
 					"cssls",
-					"tailwindcss",
-					"lua_ls",
+					-- others
 					"graphql",
 					"emmet_ls",
 					"prismals",
