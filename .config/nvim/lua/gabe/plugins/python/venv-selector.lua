@@ -11,9 +11,6 @@ return {
 	},
 	lazy = false,
 	branch = "regexp", -- This is the regexp branch, use this for the new version
-	keys = {
-		{ ",v", "<cmd>VenvSelect<cr>" },
-	},
 	opts = {
 		options = {
 			-- If you put the callback here as a global option, its used for all searches (including the default ones by the plugin)
