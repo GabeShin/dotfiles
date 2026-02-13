@@ -1,67 +1,50 @@
-# dotfile Management System utilzing stow
+# dotfiles
 
-## In this repository
+macOS and Linux dotfiles managed with [GNU Stow](https://www.gnu.org/software/stow/).
 
-- nvim configuration (.config/nvim)
+## Quick Start
 
-- zsh configuration (.zshrc)
-
-- tmux configuration (.tmux.conf)
-
-* aerospace configuration (.aerospace.toml)
-
-- sketchybar configuration (.config/sketchybar)
-
-## How to
-
-Clone the repository
-
-```terminal
-git clone https://www.github.com/gabeshin/dotfiles.git ~/dotfiles
-```
-
-Download and install [stow](https://www.gnu.org/software/stow/)
-
-```terminal
-brew install stow
-```
-
-Move to dotfiles directory and create symlink
-
-```terminal
+```bash
+git clone git@github.com:GabeShin/dotfiles.git ~/dotfiles
 cd ~/dotfiles
-stow .
+./install
 ```
 
-### .zshrc
+The install script handles everything: system packages, stow symlinks, zsh + plugins, tmux + tpm, neovim, CLI tools, and language managers.
 
-- oh-my-zsh needs to be installed
+Works on **macOS**, **Ubuntu/Debian**, and **Amazon Linux 2023**.
 
-- powerlevel10k needs to be installed
+### AeroSpace (optional, macOS only)
 
-* most of the plugins needs to be installed in $ZSH_CUSTOM/plugins
-
-### .tmux.conf
-
-- tmux needs to be installed
-- tpm needs to be installed
-
-# sketchybar
-
-- i might be missing some required installs
-- install [sketchybar](https://felixkratz.github.io/SketchyBar/setup)
-- install some other required stuffs
-
-```terminal
-brew install --cask font-sf-pro
-brew install --cask sf-symbols
-
-brew install jq
-brew install font-sketchybar-app-font # not sure if this is required
-
+```bash
+./install-aerospace
 ```
 
-### .aerospace.toml
+Installs the [AeroSpace](https://github.com/nikitabobko/AeroSpace) tiling window manager and [borders](https://github.com/FelixKratz/JankyBorders).
 
-- [aerospace](https://github.com/nikitabobko/AeroSpace) needs to be installed
--
+## What's Included
+
+| Config | File/Directory | Notes |
+|--------|---------------|-------|
+| Neovim | `.config/nvim/` | lazy.nvim, LSP, DAP, Treesitter |
+| Zsh | `.zshrc` | oh-my-zsh, powerlevel10k, autosuggestions |
+| Tmux | `.tmux.conf` | catppuccin theme, tpm, vim-tmux-navigator |
+| AeroSpace | `.aerospace.toml` | Tiling WM with workspace assignments |
+| Sketchybar | `.config/sketchybar/` | macOS menu bar (catppuccin mocha) |
+
+## What `./install` Does
+
+1. **System packages** — Homebrew (macOS) or apt/dnf (Linux), plus stow, git, curl, gcc
+2. **Stow symlinks** — links configs into `$HOME` (skips sketchybar on Linux)
+3. **Zsh** — oh-my-zsh, powerlevel10k, zsh-autosuggestions, zsh-autocomplete, zsh-syntax-highlighting, you-should-use
+4. **Tmux** — tmux + TPM (run `prefix + I` inside tmux to install plugins)
+5. **Neovim** — brew on macOS, appimage on Linux (plugins auto-install on first launch)
+6. **CLI tools** — eza, zoxide, lazygit, jq, fzf, ripgrep
+7. **Language managers** — nvm, pyenv, pipx
+8. **Sketchybar** — macOS only: sketchybar, SF Pro fonts, helper build
+
+## Manual Steps After Install
+
+- Open a new terminal (or `exec zsh`) to load the new shell config
+- Inside tmux: `prefix + I` to install tmux plugins
+- Neovim plugins and LSPs install automatically on first launch
