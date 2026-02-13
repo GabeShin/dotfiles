@@ -25,7 +25,7 @@ if [[ ! -d "$HOME/.pyenv" ]]; then
     elif has_dnf; then
       pkg_install gcc make zlib-devel bzip2 bzip2-devel readline-devel \
         sqlite sqlite-devel openssl-devel tk-devel libffi-devel xz-devel \
-        wget curl
+        wget
     fi
   fi
   curl -fsSL https://pyenv.run | bash
