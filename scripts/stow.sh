@@ -7,10 +7,13 @@ cd "$DOTFILES_DIR"
 
 if is_linux; then
   info "Running stow (skipping macOS-only configs)..."
-  stow . --ignore='sketchybar'
+  stow --adopt . --ignore='sketchybar'
 else
   info "Running stow..."
-  stow .
+  stow --adopt .
 fi
+
+# --adopt moves existing files into the repo; restore our versions
+git -C "$DOTFILES_DIR" checkout .
 
 success "Dotfiles symlinked"
