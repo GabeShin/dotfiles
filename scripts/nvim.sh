@@ -8,8 +8,14 @@ if ! command_exists nvim; then
   if is_macos; then
     brew install neovim
   elif is_linux; then
-    info "Downloading neovim appimage..."
-    curl -fLo /tmp/nvim.appimage https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
+    ARCH=$(uname -m)
+    case "$ARCH" in
+      x86_64)  NVIM_APPIMAGE="nvim-linux-x86_64.appimage" ;;
+      aarch64) NVIM_APPIMAGE="nvim-linux-arm64.appimage" ;;
+      *)       error "Unsupported architecture: $ARCH"; exit 1 ;;
+    esac
+    info "Downloading neovim appimage ($ARCH)..."
+    curl -fLo /tmp/nvim.appimage "https://github.com/neovim/neovim/releases/latest/download/${NVIM_APPIMAGE}"
     chmod u+x /tmp/nvim.appimage
     # Extract instead of running directly — avoids FUSE dependency on Amazon Linux / containers
     (
