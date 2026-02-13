@@ -29,7 +29,7 @@ elif is_linux; then
     pkg_install stow git curl wget gpg build-essential
   elif has_dnf; then
     sudo dnf groupinstall -y "Development Tools"
-    pkg_install git curl wget gcc make perl
+    pkg_install git wget gcc make perl
     # stow is not in default AL2023 repos — install from source if missing
     if ! command_exists stow; then
       info "stow not in repos, installing from source..."
