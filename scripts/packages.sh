@@ -29,7 +29,16 @@ elif is_linux; then
     pkg_install stow git curl wget gpg build-essential
   elif has_dnf; then
     sudo dnf groupinstall -y "Development Tools"
-    pkg_install stow git curl wget gcc make
+    pkg_install git curl wget gcc make perl
+    # stow is not in default AL2023 repos — install from source if missing
+    if ! command_exists stow; then
+      info "stow not in repos, installing from source..."
+      curl -fLo /tmp/stow.tar.gz https://ftp.gnu.org/gnu/stow/stow-2.4.1.tar.gz
+      tar xf /tmp/stow.tar.gz -C /tmp
+      (cd /tmp/stow-2.4.1 && ./configure && sudo make install)
+      rm -rf /tmp/stow-2.4.1 /tmp/stow.tar.gz
+      success "stow built from source"
+    fi
   else
     error "No supported package manager found (need apt or dnf)"
     exit 1
