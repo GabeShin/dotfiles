@@ -45,6 +45,7 @@ if ! command_exists pipx; then
     elif has_dnf; then
       pkg_install pipx 2>/dev/null || {
         info "pipx not in dnf repos, installing via pip..."
+        pkg_install python3-pip
         python3 -m pip install --user pipx
       }
     fi
