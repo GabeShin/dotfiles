@@ -12,14 +12,48 @@ elif is_linux; then
   # Detect architecture
   ARCH=$(uname -m)
   case "$ARCH" in
-    x86_64)  EZA_ARCH="x86_64-unknown-linux-gnu"; LG_ARCH="Linux_x86_64" ;;
-    aarch64) EZA_ARCH="aarch64-unknown-linux-gnu"; LG_ARCH="Linux_arm64" ;;
+    x86_64)  EZA_ARCH="x86_64-unknown-linux-gnu"; LG_ARCH="Linux_x86_64"; FZF_ARCH="linux_amd64"; RG_ARCH="x86_64-unknown-linux-musl" ;;
+    aarch64) EZA_ARCH="aarch64-unknown-linux-gnu"; LG_ARCH="Linux_arm64"; FZF_ARCH="linux_arm64"; RG_ARCH="aarch64-unknown-linux-gnu" ;;
     *)       warn "Unsupported architecture: $ARCH — some tools may be skipped" ;;
   esac
 
-  # jq, fzf, ripgrep — available in both apt and dnf
-  info "Installing jq, fzf, ripgrep..."
-  pkg_install jq fzf ripgrep
+  # jq — available in both apt and dnf
+  info "Installing jq..."
+  pkg_install jq
+
+  # fzf
+  if ! command_exists fzf; then
+    info "Installing fzf..."
+    if has_apt; then
+      pkg_install fzf
+    else
+      FZF_VERSION=$(curl -s "https://api.github.com/repos/junegunn/fzf/releases/latest" | grep -Po '"tag_name": "v?\K[^"]*')
+      curl -fLo /tmp/fzf.tar.gz "https://github.com/junegunn/fzf/releases/latest/download/fzf-${FZF_VERSION}-${FZF_ARCH}.tar.gz"
+      tar xf /tmp/fzf.tar.gz -C /tmp fzf
+      sudo install /tmp/fzf /usr/local/bin
+      rm -f /tmp/fzf /tmp/fzf.tar.gz
+    fi
+    success "fzf installed"
+  else
+    success "fzf already installed"
+  fi
+
+  # ripgrep
+  if ! command_exists rg; then
+    info "Installing ripgrep..."
+    if has_apt; then
+      pkg_install ripgrep
+    else
+      RG_VERSION=$(curl -s "https://api.github.com/repos/BurntSushi/ripgrep/releases/latest" | grep -Po '"tag_name": "\K[^"]*')
+      curl -fLo /tmp/rg.tar.gz "https://github.com/BurntSushi/ripgrep/releases/latest/download/ripgrep-${RG_VERSION}-${RG_ARCH}.tar.gz"
+      tar xf /tmp/rg.tar.gz -C /tmp
+      sudo install "/tmp/ripgrep-${RG_VERSION}-${RG_ARCH}/rg" /usr/local/bin
+      rm -rf "/tmp/ripgrep-${RG_VERSION}-${RG_ARCH}" /tmp/rg.tar.gz
+    fi
+    success "ripgrep installed"
+  else
+    success "ripgrep already installed"
+  fi
 
   # eza
   if ! command_exists eza; then
