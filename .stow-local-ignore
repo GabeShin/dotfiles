@@ -1,0 +1,23 @@
+# stow defaults
+RCS
+.+,v
+CVS
+\.\#.+
+\.cvsignore
+\.svn
+_darcs
+\.hg
+\.git
+\.gitignore
+\.gitmodules
+.+~
+\#.*\#
+^/README.*
+^/LICENSE.*
+^/COPYING
+
+# dotfiles install scripts
+^/install$
+^/install-aerospace$
+^/scripts$
+^/CLAUDE\.md$

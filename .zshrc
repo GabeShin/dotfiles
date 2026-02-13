@@ -64,3 +64,6 @@ export NVM_DIR="$HOME/.nvm"
 export PYENV_ROOT="$HOME/.pyenv"
 [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init - zsh)"
+
+# Created by `pipx` on 2025-07-01 04:19:51
+export PATH="$PATH:/Users/gabe/.local/bin"

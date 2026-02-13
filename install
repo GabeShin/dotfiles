@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$DOTFILES_DIR/scripts/common.sh"
+
+section "Dotfiles install"
+info "OS detected: $OSTYPE"
+info "Dotfiles directory: $DOTFILES_DIR"
+
+# 1. Install system packages (stow, git, curl, make, gcc)
+source "$DOTFILES_DIR/scripts/packages.sh"
+
+# 2. Symlink dotfiles via stow
+source "$DOTFILES_DIR/scripts/stow.sh"
+
+# 3. Setup zsh + oh-my-zsh + plugins
+source "$DOTFILES_DIR/scripts/zsh.sh"
+
+# 4. Setup tmux + tpm
+source "$DOTFILES_DIR/scripts/tmux.sh"
+
+# 5. Install neovim
+source "$DOTFILES_DIR/scripts/nvim.sh"
+
+# 6. Install CLI tools (eza, zoxide, lazygit, etc.)
+source "$DOTFILES_DIR/scripts/cli-tools.sh"
+
+# 7. Install language version managers (nvm, pyenv, pipx)
+source "$DOTFILES_DIR/scripts/lang-managers.sh"
+
+# 8. macOS only: sketchybar
+if is_macos; then
+  source "$DOTFILES_DIR/scripts/sketchybar.sh"
+fi
+
+section "Done!"
+success "All tools installed. Open a new terminal or run: exec zsh"

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$DOTFILES_DIR/scripts/common.sh"
+
+section "AeroSpace + Borders install"
+
+if ! is_macos; then
+  warn "AeroSpace is macOS only. Skipping."
+  exit 0
+fi
+
+if ! command_exists brew; then
+  error "Homebrew is required. Run ./install first."
+  exit 1
+fi
+
+info "Installing AeroSpace..."
+brew install --cask nikitabobko/tap/aerospace
+success "AeroSpace installed"
+
+info "Installing borders..."
+brew install FelixKratz/formulae/borders
+success "borders installed"
+
+section "Done!"
+info "Log out and back in, or start AeroSpace manually."
