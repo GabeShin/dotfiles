@@ -17,6 +17,17 @@ keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode with jk" })
 -- clear search highlights
 keymap.set("n", "<leader>nh", ":nohl<CR>", { desc = "Clear search highlights" })
 
+-- builtin undo tree (Neovim 0.12+)
+keymap.set("n", "<leader>u", function()
+	local ok = pcall(vim.cmd, "packadd nvim.undotree")
+	if not ok then
+		vim.notify("nvim.undotree requires Neovim 0.12+", vim.log.levels.WARN)
+		return
+	end
+
+	require("undotree").open()
+end, { desc = "Open undo tree" })
+
 -- delete without copying into register
 keymap.set("n", "x", '"_x')
 keymap.set("n", "d", '"_d')

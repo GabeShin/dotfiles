@@ -16,7 +16,6 @@ vim.opt.rtp:prepend(lazypath)
 require("lazy").setup({
 	{ import = "gabe.plugins" },
 	{ import = "gabe.plugins.lsp" },
-	{ import = "gabe.plugins.llm" },
 	{ import = "gabe.plugins.mini" },
 	{ import = "gabe.plugins.note" },
 	{ import = "gabe.plugins.debug" },
