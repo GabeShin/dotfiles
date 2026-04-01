@@ -39,18 +39,6 @@ setopt hist_find_no_dups
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# configure zsh-autocomplete
-source $ZSH_CUSTOM/plugins/zsh-autocomplete/zsh-autocomplete.plugin.zsh
-
-# configure zsh-syntax-highlighting
-source $ZSH_CUSTOM/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-# configure zsh-autosuggestions
-source $ZSH_CUSTOM/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
-
-# configure you-should-use
-source $ZSH_CUSTOM/plugins/you-should-use/you-should-use.plugin.zsh
-
 # eza (better ls)
 alias ls="eza --icons=auto"
 
@@ -66,4 +54,4 @@ export PYENV_ROOT="$HOME/.pyenv"
 eval "$(pyenv init - zsh)"
 
 # Created by `pipx` on 2025-07-01 04:19:51
-export PATH="$PATH:/Users/gabe/.local/bin"
+export PATH="$PATH:$HOME/.local/bin"
