@@ -14,9 +14,8 @@ export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
 plugins=(
-  git 
+  git
   you-should-use
-  zsh-autocomplete
   zsh-autosuggestions
   zsh-syntax-highlighting # needs to be the last
 )
@@ -42,8 +41,6 @@ setopt hist_find_no_dups
 # eza (better ls)
 alias ls="eza --icons=auto"
 
-# zoxide (better cd)
-eval "$(zoxide init --cmd cd zsh)"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
@@ -55,3 +52,8 @@ eval "$(pyenv init - zsh)"
 
 # Created by `pipx` on 2025-07-01 04:19:51
 export PATH="$PATH:$HOME/.local/bin"
+
+export PATH="$HOME/bin:$PATH"
+
+# zoxide (better cd)
+eval "$(zoxide init --cmd cd zsh)"

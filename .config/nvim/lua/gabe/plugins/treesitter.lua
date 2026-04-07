@@ -1,62 +1,52 @@
 return {
 	"nvim-treesitter/nvim-treesitter",
+	branch = "main",
 	event = { "BufReadPre", "BufNewFile" },
 	build = ":TSUpdate",
 	dependencies = {
 		"windwp/nvim-ts-autotag",
 	},
 	config = function()
-		-- import nvim-treesitter plugin
-		local treesitter = require("nvim-treesitter.configs")
+		require("nvim-treesitter").setup()
 
-		-- configure treesitter
-		treesitter.setup({ -- enable syntax highlighting
-			-- ensure these language parsers are installed
-			ensure_installed = {
-				"json",
-				"javascript",
-				"typescript",
-				"tsx",
-				"python",
-				"yaml",
-				"html",
-				"css",
-				"prisma",
-				"markdown",
-				"markdown_inline",
-				"graphql",
-				"bash",
-				"lua",
-				"vim",
-				"dockerfile",
-				"gitignore",
-				"query",
-				"vimdoc",
-				"c",
-				"bash",
-			},
-			modules = {},
-			sync_install = false,
-			auto_install = true,
-			ignore_install = {},
-			highlight = {
-				enable = true,
-			},
-			-- enable indentation
-			indent = { enable = true },
-			-- enable autotagging (w/ nvim-ts-autotag plugin)
-			autotag = {
-				enable = true,
-			},
-			incremental_selection = {
-				enable = true,
-				keymaps = {
-					init_selection = "<C-space>",
-					node_incremental = "<C-space>",
-					scope_incremental = false,
-					node_decremental = "<bs>",
-				},
-			},
+		-- Ensure parsers are installed on startup
+		vim.api.nvim_create_autocmd("VimEnter", {
+			callback = function()
+				local ts = require("nvim-treesitter")
+				local wanted = {
+					"json",
+					"javascript",
+					"typescript",
+					"tsx",
+					"python",
+					"yaml",
+					"html",
+					"css",
+					"prisma",
+					"markdown",
+					"markdown_inline",
+					"graphql",
+					"bash",
+					"lua",
+					"vim",
+					"dockerfile",
+					"gitignore",
+					"query",
+					"vimdoc",
+					"c",
+				}
+				local installed = {}
+				for _, p in ipairs(ts.get_installed()) do
+					installed[p] = true
+				end
+				local missing = vim.tbl_filter(function(p)
+					return not installed[p]
+				end, wanted)
+				if #missing > 0 then
+					ts.install(missing)
+				end
+			end,
+			once = true,
 		})
 	end,
 }
