@@ -28,6 +28,7 @@ After editing configs, the symlinks mean changes take effect immediately for mos
 .config/
   nvim/                  # Neovim config (lazy.nvim)
   sketchybar/            # macOS menu bar replacement
+  agent-notify/          # Claude Code / Codex "turn finished" -> sketchybar badge
 ```
 
 ## Neovim Architecture
@@ -54,9 +55,34 @@ Each plugin file returns a lazy.nvim plugin spec table. The leader key is `space
 
 - **Theme**: Catppuccin (Mocha) — color definitions in `colors.sh`
 - **Bar items (left)**: apple menu, aerospace workspaces, front app
-- **Bar items (right)**: calendar, battery, volume, cpu, weather, slack
+- **Bar items (right)**: calendar, battery, volume, cpu, weather, slack, agent_notify
 - **Helper**: C program in `helper/` for CPU stats (built via `make`)
 - Integrates with AeroSpace for workspace indicators
+
+## Agent Notifications
+
+`agent-notify/agent-notify.sh` badges the sketchybar `agent_notify` item when a
+Claude Code or Codex agent finishes a turn, labelled `<instance>:<tmux window>`
+(e.g. `w2:dotfiles`). State is one file per agent under `~/.cache/agent-notify`,
+keyed by tmux pane id.
+
+**The wiring lives outside this repo** and is not stowed, so a fresh machine
+needs it re-added by hand:
+
+- `~/.claude/settings.json` and `~/.claude-worker-{1,2,3}/settings.json` — a
+  `hooks` block per file. Each worker has its own independent settings.json
+  (only `skills` is symlinked back to `~/.claude`), so all four need it.
+  `Stop` -> `claude-done`, `Notification` -> `claude-waiting`,
+  `UserPromptSubmit`/`SessionEnd` -> `claude-clear`.
+- `~/.codex/config.toml` — `notify = ["<abs path>/agent-notify.sh", "codex-done"]`.
+  Must be an absolute path: `notify` is exec'd, not run through a shell.
+  `~/.codex-work/config.toml` is a symlink to this file, so both share it.
+
+Codex has no "user replied" event, so codex badges clear when you are visibly
+looking at their pane (kitty frontmost + pane active in an attached client), or
+on click. Claude clears on its own events.
+
+Claude Code reads hooks at startup — running sessions need a restart.
 
 ## AeroSpace Workspace Assignments
 
