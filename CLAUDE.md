@@ -62,9 +62,11 @@ Each plugin file returns a lazy.nvim plugin spec table. The leader key is `space
 ## Agent Notifications
 
 `agent-notify/agent-notify.sh` badges the sketchybar `agent_notify` item when a
-Claude Code or Codex agent finishes a turn, labelled `<instance>:<tmux window>`
-(e.g. `w2:dotfiles`). State is one file per agent under `~/.cache/agent-notify`,
-keyed by tmux pane id.
+Claude Code or Codex agent finishes a turn, labelled with each agent's tmux
+window name (e.g. `pokemon  dotfiles  act-2`). State is one file per agent under
+`~/.cache/agent-notify`, keyed by tmux pane id; the file records kind, state,
+instance and location as separate tab-separated fields so the bar owns
+presentation.
 
 **The wiring lives outside this repo** and is not stowed, so a fresh machine
 needs it re-added by hand:
@@ -78,9 +80,11 @@ needs it re-added by hand:
   Must be an absolute path: `notify` is exec'd, not run through a shell.
   `~/.codex-work/config.toml` is a symlink to this file, so both share it.
 
-Codex has no "user replied" event, so codex badges clear when you are visibly
-looking at their pane (kitty frontmost + pane active in an attached client), or
-on click. Claude clears on its own events.
+Badges never time out. A Claude badge clears when you send that session its
+next prompt (`UserPromptSubmit`) or quit it (`SessionEnd`). Codex has no "user
+replied" event, so codex badges clear once you are visibly looking at their pane
+-- kitty frontmost and the pane active in an attached client, re-checked every
+`update_freq=5` seconds. Clicking the badge dismisses everything.
 
 Claude Code reads hooks at startup — running sessions need a restart.
 

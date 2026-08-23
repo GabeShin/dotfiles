@@ -9,7 +9,8 @@ sketchybar --add item agent_notify right \
            --set agent_notify drawing=off \
                               updates=on \
                               update_freq=5 \
-                              icon.font="$FONT:Bold:15.0" \
+                              icon.font="MesloLGL Nerd Font:Bold:15.0" \
+                              icon.padding_right=6 \
                               label.max_chars=45 \
                               background.padding_left=8 \
                               click_script="sketchybar --set agent_notify drawing=off" \

@@ -80,6 +80,7 @@ case "$where" in
 esac
 
 mkdir -p "$STATE_DIR" || exit 0
-# kind, state, label -- tab separated, one line, no JSON parser needed.
-printf '%s\t%s\t%s:%s\n' "$kind" "$state" "$instance" "$where" > "$state_file"
+# kind, state, instance, location -- tab separated, one line, no JSON parser
+# needed. Presentation is the bar's job, so keep the fields separate.
+printf '%s\t%s\t%s\t%s\n' "$kind" "$state" "$instance" "$where" > "$state_file"
 notify_bar

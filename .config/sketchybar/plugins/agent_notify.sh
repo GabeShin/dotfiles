@@ -47,9 +47,11 @@ fi
 label=""
 waiting=0
 for f in "${entries[@]}"; do
-    IFS=$'\t' read -r _ state text < "$f" || continue
+    IFS=$'\t' read -r _ state instance where < "$f" || continue
     [ "$state" = waiting ] && waiting=1
-    label+="${label:+  }${text}"
+    # The tmux window name is the handle worth showing; the instance name is
+    # only a fallback for agents started outside tmux.
+    label+="${label:+  }${where:-$instance}"
 done
 
 # Red when something is blocked on you, green when it is merely finished.
@@ -62,6 +64,6 @@ else
 fi
 
 count=${#entries[@]}
-[ "$count" -gt 1 ] && icon="$icon $count"
+[ "$count" -gt 1 ] && icon="$icon  $count"
 
 sketchybar --set "$NAME" drawing=on icon="$icon" icon.color="$color" label="$label"
