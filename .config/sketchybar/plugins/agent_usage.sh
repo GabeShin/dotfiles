@@ -3,14 +3,13 @@
 # Renders the subscription quota readout from the state files written by
 # ~/.config/agent-usage/agent-usage.sh
 #
-# The bar has room for one account at a time, so the item rotates: one entry
-# per tick. Clicking opens a popup with all of them at once, which is the view
-# that actually answers "which subscription am I leaning on this week?".
+# The bar shows all six accounts as a sparkline -- one fixed cell each, height
+# by weekly usage -- so an imbalance is visible as a shape without waiting for
+# anything to rotate. Clicking opens the full table.
 
 source "$CONFIG_DIR/colors.sh"
 
 STATE_DIR="${AGENT_USAGE_DIR:-$HOME/.cache/agent-usage}"
-CURSOR="$STATE_DIR/.cursor"
 COLLECTOR="$HOME/.config/agent-usage/agent-usage.sh"
 
 # sketchybarrc keeps FONT as a plain shell variable, so it does not reach
@@ -28,23 +27,41 @@ NAME_WIDTH=16   # "claude-worker-1" is 15 characters
 [ -x "$COLLECTOR" ] && ( "$COLLECTOR" codex-poll >/dev/null 2>&1 & )
 
 shopt -s nullglob
-# Group Claude accounts before Codex ones; within a kind the glob is already
-# alphabetical (claude, claude-worker-1..3 / codex, codex-work), which keeps
-# the rotation order stable between ticks.
-claude_files=() codex_files=()
-for f in "$STATE_DIR"/*; do
-    IFS=$'\t' read -r kind _ < "$f" 2>/dev/null || continue
-    case "$kind" in
-        claude) claude_files+=("$f") ;;
-        codex)  codex_files+=("$f") ;;
-    esac
-done
-entries=("${claude_files[@]}" "${codex_files[@]}")
+# Enumerate the accounts that *exist*, not the ones that happen to have
+# reported. An account you have not opened since this item was installed has no
+# state file, and leaving it out entirely reads as "fine" when it means
+# "unknown" -- which is exactly the account you might then overload. Deriving
+# the list from the config dirs also means a new worker shows up on its own,
+# and fixes the rotation order instead of letting it depend on what has run.
+accounts=()   # kind <TAB> label <TAB> state file
+_seen=' '
+add_account() {
+    local kind="$1" dir="$2" label
+    [ -d "$dir" ] || return 0
+    label="${dir##*/}"; label="${label#.}"
+    case "$_seen" in *" $label "*) return 0 ;; esac
+    _seen+="$label "
+    accounts+=("$kind"$'\t'"$label"$'\t'"$STATE_DIR/$label")
+}
+for d in "$HOME"/.claude "$HOME"/.claude-worker-*; do add_account claude "$d"; done
+for d in "$HOME"/.codex   "$HOME"/.codex-*;         do add_account codex  "$d"; done
 
-if [ ${#entries[@]} -eq 0 ]; then
+if [ ${#accounts[@]} -eq 0 ]; then
     sketchybar --set "$NAME" drawing=off popup.drawing=off
     exit 0
 fi
+
+# Load one account's numbers into acc_*. A missing state file is "pending":
+# the account is real, it just has not reported yet.
+read_account() {
+    local rec="$1"
+    IFS=$'\t' read -r acc_kind acc_label acc_file <<< "$rec"
+    acc_status=pending acc_five='-' acc_week='-' acc_resets='-' acc_updated='-' acc_plan='-'
+    [ -f "$acc_file" ] || return 0
+    IFS=$'\t' read -r _ _ acc_status acc_five acc_week acc_resets acc_updated acc_plan \
+        < "$acc_file" 2>/dev/null || acc_status=pending
+    return 0
+}
 
 # Colour tracks how close to the cap you are, not how much you have used: the
 # first half of a quota is not worth a warm colour.
@@ -140,7 +157,7 @@ add_row() {
 
 build_popup() {
     popup_args=(--remove '/agent_usage\.row\..*/')
-    local i=0 f kind label status five week resets updated plan
+    local i=0 rec
 
     # Column header, so the two numbers never have to be guessed at. The widths
     # mirror the data rows below exactly: name, then each window as a 15-wide
@@ -150,36 +167,41 @@ build_popup() {
             "$NAME_WIDTH" 'account' 'this week' '5 hours' 'resets')" \
         "$GREY"
 
-    for f in "${entries[@]}"; do
-        IFS=$'\t' read -r kind label status five week resets updated plan < "$f" || continue
+    for rec in "${accounts[@]}"; do
+        read_account "$rec"
         local text color dot stale reset_txt
-        dot="$([ "$kind" = codex ] && echo "$MAGENTA" || echo "$BLUE")"
+        dot="$([ "$acc_kind" = codex ] && echo "$MAGENTA" || echo "$BLUE")"
 
-        case "$status" in
+        case "$acc_status" in
+            pending)
+                text="$(printf '%-*s not measured yet -- open a session to populate' \
+                        "$NAME_WIDTH" "$acc_label")"
+                color="$GREY"
+                ;;
             auth)
                 text="$(printf '%-*s signed out -- run:  CODEX_HOME=~/.%s codex login' \
-                        "$NAME_WIDTH" "$label" "$label")"
+                        "$NAME_WIDTH" "$acc_label" "$acc_label")"
                 color="$RED"
                 ;;
             *)
-                if [ "$week" = '-' ] && [ "$five" = '-' ]; then
-                    text="$(printf '%-*s no subscription quota' "$NAME_WIDTH" "$label")"
+                if [ "$acc_week" = '-' ] && [ "$acc_five" = '-' ]; then
+                    text="$(printf '%-*s no subscription quota' "$NAME_WIDTH" "$acc_label")"
                     color="$GREY"
                 else
-                    reset_txt="$(until_reset "$resets")"
+                    reset_txt="$(until_reset "$acc_resets")"
                     # Both windows get a gauge: the five-hour number is the one
                     # that stops you today, and a bar is what makes it legible.
                     text="$(printf '%-*s %s %s   %s %s   %s' \
-                            "$NAME_WIDTH" "$label" \
-                            "$(gauge "$week")" "$(pct_cell "$week")" \
-                            "$(gauge "$five")" "$(pct_cell "$five")" \
+                            "$NAME_WIDTH" "$acc_label" \
+                            "$(gauge "$acc_week")" "$(pct_cell "$acc_week")" \
+                            "$(gauge "$acc_five")" "$(pct_cell "$acc_five")" \
                             "${reset_txt:+in $reset_txt}")"
-                    color="$(pct_color "$week")"
+                    color="$(pct_color "$acc_week")"
                 fi
                 ;;
         esac
 
-        stale="$(age_of "$updated")"
+        stale="$(age_of "$acc_updated")"
         [ -n "$stale" ] && text="$text  ($stale)"
 
         add_row "$i" "$dot" "$text" "$color"
@@ -211,47 +233,61 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Bar: one account per tick
+# Bar: all six accounts at once
 # ---------------------------------------------------------------------------
-# Advance only on the timer. A statusline write fires agent_usage_changed, and
-# letting that advance the rotation would make the display jump around while
-# you type.
-index=0
-[ -f "$CURSOR" ] && read -r index < "$CURSOR" 2>/dev/null
-case "$index" in ''|*[!0-9]*) index=0 ;; esac
-if [ "$SENDER" = "routine" ] || [ "$SENDER" = "forced" ]; then
-    index=$(( (index + 1) % ${#entries[@]} ))
-    printf '%s\n' "$index" > "$CURSOR" 2>/dev/null
+# One cell per account in a fixed order, so a position always means the same
+# account and the shape of the row *is* the distribution -- which is the thing
+# worth noticing. This replaced a rotation that showed one account per tick:
+# three minutes to learn what a glance can tell you, with the account you
+# cared about likely off-screen at the moment you looked.
+SPARK=('▁' '▂' '▃' '▄' '▅' '▆' '▇' '█')
+
+spark_cell() {
+    local pct="${1%%.*}" i
+    case "$pct" in ''|*[!0-9]*) printf '%s' '·'; return ;; esac
+    [ "$pct" -gt 100 ] && pct=100
+    i=$(( pct * 8 / 100 ))
+    [ "$i" -gt 7 ] && i=7
+    printf '%s' "${SPARK[$i]}"
+}
+
+line='' worst_pct=-1 worst_label='' any_auth=0
+for rec in "${accounts[@]}"; do
+    read_account "$rec"
+    case "$acc_status" in
+        auth)    line+='!'; any_auth=1 ;;
+        pending) line+='·' ;;
+        *)
+            if [ "$acc_week" = '-' ]; then
+                line+='·'
+            else
+                line+="$(spark_cell "$acc_week")"
+                if [ "${acc_week%%.*}" -gt "$worst_pct" ]; then
+                    worst_pct="${acc_week%%.*}"
+                    worst_label="$acc_label"
+                fi
+            fi
+            ;;
+    esac
+done
+
+# Naming the busiest account only earns its space once it is actually busy.
+# Below half, the number alone is enough and the bar stays quiet.
+if [ "$worst_pct" -lt 0 ]; then
+    label_text="$line  no data"
+    color="$GREY"
+elif [ "$worst_pct" -ge 50 ]; then
+    label_text="$line  $worst_label ${worst_pct}%"
+    color="$(pct_color "$worst_pct")"
+else
+    label_text="$line  ${worst_pct}%"
+    color="$(pct_color "$worst_pct")"
 fi
-[ "$index" -ge ${#entries[@]} ] && index=0
 
-IFS=$'\t' read -r kind label status five week resets updated plan < "${entries[$index]}"
-
-case "$status" in
-    auth)
-        label_text="$label  signed out"
-        color="$RED"
-        ;;
-    *)
-        # The weekly window is the headline: it is the one that decides which
-        # subscription the next task should go to. Same gauge as the popup, so
-        # the bar and the table read as one thing.
-        if [ "$week" != '-' ]; then
-            label_text="$label $(gauge "$week") $(pct_int "$week")%"
-            color="$(pct_color "$week")"
-        elif [ "$five" != '-' ]; then
-            label_text="$label $(gauge "$five") $(pct_int "$five")% 5h"
-            color="$(pct_color "$five")"
-        else
-            label_text="$label  no data"
-            color="$GREY"
-        fi
-        ;;
-esac
-
-# A dimmed icon means the numbers behind it are not fresh.
+# The label carries magnitude, so let the icon carry "something needs a look":
+# a signed-out account cannot be measured at all, and no percentage will say so.
 icon_color="$WHITE"
-[ -n "$(age_of "$updated")" ] && icon_color="$GREY"
+[ "$any_auth" -eq 1 ] && icon_color="$RED"
 
 sketchybar --set "$NAME" drawing=on \
                          icon='󰚩' \

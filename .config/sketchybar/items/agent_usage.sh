@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Rotating quota readout for every Claude / Codex subscription. State comes
-# from ~/.config/agent-usage/agent-usage.sh; see plugins/agent_usage.sh for the
-# rendering and popups/agent_usage rows for the full breakdown on click.
+# Quota readout for every Claude / Codex subscription, drawn as a sparkline --
+# one fixed cell per account, height by weekly usage. State comes from
+# ~/.config/agent-usage/agent-usage.sh; see plugins/agent_usage.sh for the
+# rendering and the popup rows for the full breakdown on click.
 
 # updates=on is required: the global default is updates=when_shown, and this
 # item starts with drawing=off, so a when_shown item would never run its
