@@ -41,7 +41,7 @@ opt.splitbelow = true -- split horizontal window to the bottom
 opt.swapfile = false
 
 -- column limit
-opt.colorcolumn = "80" -- show a vertical line at column 80
+opt.colorcolumn = "100" -- show a vertical line at column 100
 
 -- scrolloff
 opt.scrolloff = 8
