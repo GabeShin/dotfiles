@@ -29,6 +29,7 @@ After editing configs, the symlinks mean changes take effect immediately for mos
   nvim/                  # Neovim config (lazy.nvim)
   sketchybar/            # macOS menu bar replacement
   agent-notify/          # Claude Code / Codex "turn finished" -> sketchybar badge
+  agent-usage/           # Claude / Codex subscription quota -> sketchybar readout
 ```
 
 ## Neovim Architecture
@@ -87,6 +88,56 @@ replied" event, so codex badges clear once you are visibly looking at their pane
 `update_freq=5` seconds. Clicking the badge dismisses everything.
 
 Claude Code reads hooks at startup — running sessions need a restart.
+
+## Agent Usage
+
+`agent-usage/agent-usage.sh` feeds the sketchybar `agent_usage` item, which
+rotates through every Claude / Codex subscription (one per 30s tick) so an
+unbalanced week is visible before it is expensive. Clicking opens a popup with
+all of them at once, marks the heaviest weekly account with `←`, and offers a
+forced refresh.
+
+Both halves read real server-reported quota, and neither needs a token, a
+network call of our own, or a login:
+
+- **Claude** (`claude`, `w1`, `w2`, `w3`) — Claude Code >= 2.1 hands
+  `rate_limits.five_hour` / `.seven_day` to the `statusLine` command on stdin.
+  The script is that status line: it writes the state file and echoes a line
+  back for the session. Free, but it only updates while a session is running,
+  so an untouched account goes stale (the bar dims its icon and the popup says
+  how old the sample is).
+- **Codex** (`codex`, `codex-work`) — no equivalent push, so ask the
+  app-server: JSON-RPC `account/rateLimits/read` over `codex app-server`, with
+  `CODEX_HOME` selecting the account. Live, but it costs a subprocess, so
+  samples are cached (5 min, or 30 min for a signed-out account). The bar asks
+  every tick and the script decides whether a poll is actually due.
+
+State is one file per account under `~/.cache/agent-usage`, tab separated —
+`kind, label, status, five_pct, week_pct, week_resets_at, updated_at, plan` —
+same split as agent-notify, so the bar owns presentation. `status` is `ok`,
+`auth` (signed out; the popup prints the `codex login` command to fix it) or
+`unknown` (no subscription quota, e.g. an API-key session). Unmeasured numbers
+are `-`, never `0`, so idle and unknown stay distinguishable.
+
+Two things that are easy to get wrong here:
+
+- `codex app-server` exits when stdin closes, which happens before the async
+  reply arrives — the poller holds the pipe open until it answers.
+- sketchybar starts at login with a bare PATH that cannot see `codex` (nvm
+  keeps it in a versioned directory), so the script extends PATH itself,
+  newest node first. Older node versions can be left with a broken or
+  XProtect-removed vendor binary, so version order matters.
+
+**The Claude wiring lives outside this repo** and is not stowed, so a fresh
+machine needs it re-added by hand — a `statusLine` block in each of
+`~/.claude/settings.json` and `~/.claude-worker-{1,2,3}/settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "\"$HOME\"/.config/agent-usage/agent-usage.sh claude-statusline"
+}
+```
 
 ## AeroSpace Workspace Assignments
 
