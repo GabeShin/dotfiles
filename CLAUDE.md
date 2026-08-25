@@ -93,8 +93,8 @@ Claude Code reads hooks at startup — running sessions need a restart.
 
 `agent-usage/agent-usage.sh` feeds the sketchybar `agent_usage` item, which
 rotates through every Claude / Codex subscription (one per 30s tick) so an
-unbalanced week is visible before it is expensive. Clicking opens a popup with
-all of them at once, marks the heaviest weekly account with `←`, and offers a
+unbalanced week is visible before it is expensive. The bar shows the account's
+weekly gauge; clicking opens a popup with all of them at once and offers a
 forced refresh.
 
 Both halves read real server-reported quota, and neither needs a token, a
@@ -121,8 +121,11 @@ time and has the room, and the full name is the one you type. `status` is `ok`,
 `unknown` (no subscription quota, e.g. an API-key session). Unmeasured numbers
 are `-`, never `0`, so idle and unknown stay distinguishable.
 
-The popup is a table, so its rows use a monospace face and fixed-width cells --
-a ten-cell gauge is far easier to compare down a column than digits are.
+The popup is a table, so its rows use a monospace face and fixed-width cells,
+with a ten-cell gauge for each window (weekly and five-hour) -- a bar is far
+easier to compare down a column than digits are. The bar item uses the same
+gauge for the weekly window, so the two read as one thing; both need the
+monospace face or the block characters fall back to uneven widths.
 
 Two things that are easy to get wrong here:
 

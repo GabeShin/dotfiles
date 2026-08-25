@@ -142,22 +142,11 @@ build_popup() {
     popup_args=(--remove '/agent_usage\.row\..*/')
     local i=0 f kind label status five week resets updated plan
 
-    # Mark the account carrying the most of this week: that is the one worth
-    # steering the next task away from, and it is the reason to open this at all.
-    local top_label='' top_pct=-1
-    for f in "${entries[@]}"; do
-        IFS=$'\t' read -r kind label status five week resets updated plan < "$f" || continue
-        case "${week%%.*}" in ''|*[!0-9]*) continue ;; esac
-        if [ "${week%%.*}" -gt "$top_pct" ]; then
-            top_pct="${week%%.*}"; top_label="$label"
-        fi
-    done
-
     # Column header, so the two numbers never have to be guessed at. The widths
-    # mirror the data row below exactly: name, then gauge+percent as one
-    # 15-wide block, then the five-hour cell, then the reset.
+    # mirror the data rows below exactly: name, then each window as a 15-wide
+    # gauge-plus-percent block, then the reset.
     add_row head "$TRANSPARENT" \
-        "$(printf '%-*s %-15s   %-7s   %s' \
+        "$(printf '%-*s %-15s   %-15s   %s' \
             "$NAME_WIDTH" 'account' 'this week' '5 hours' 'resets')" \
         "$GREY"
 
@@ -178,10 +167,12 @@ build_popup() {
                     color="$GREY"
                 else
                     reset_txt="$(until_reset "$resets")"
-                    text="$(printf '%-*s %s %s   5h %s   %s' \
+                    # Both windows get a gauge: the five-hour number is the one
+                    # that stops you today, and a bar is what makes it legible.
+                    text="$(printf '%-*s %s %s   %s %s   %s' \
                             "$NAME_WIDTH" "$label" \
                             "$(gauge "$week")" "$(pct_cell "$week")" \
-                            "$(pct_cell "$five")" \
+                            "$(gauge "$five")" "$(pct_cell "$five")" \
                             "${reset_txt:+in $reset_txt}")"
                     color="$(pct_color "$week")"
                 fi
@@ -190,9 +181,6 @@ build_popup() {
 
         stale="$(age_of "$updated")"
         [ -n "$stale" ] && text="$text  ($stale)"
-        if [ "$label" = "$top_label" ] && [ "$top_pct" -gt 0 ]; then
-            text="$text  ← heaviest"
-        fi
 
         add_row "$i" "$dot" "$text" "$color"
         i=$(( i + 1 ))
@@ -245,11 +233,14 @@ case "$status" in
         color="$RED"
         ;;
     *)
+        # The weekly window is the headline: it is the one that decides which
+        # subscription the next task should go to. Same gauge as the popup, so
+        # the bar and the table read as one thing.
         if [ "$week" != '-' ]; then
-            label_text="$label  $(pct_int "$week")% this week"
+            label_text="$label $(gauge "$week") $(pct_int "$week")%"
             color="$(pct_color "$week")"
         elif [ "$five" != '-' ]; then
-            label_text="$label  $(pct_int "$five")% this 5h"
+            label_text="$label $(gauge "$five") $(pct_int "$five")% 5h"
             color="$(pct_color "$five")"
         else
             label_text="$label  no data"
