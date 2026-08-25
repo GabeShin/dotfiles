@@ -86,6 +86,7 @@ source "$ITEM_DIR/cpu.sh"
 source "$ITEM_DIR/weather.sh"
 source "$ITEM_DIR/slack.sh"
 source "$ITEM_DIR/agent_notify.sh"
+source "$ITEM_DIR/agent_usage.sh"
 
 sketchybar --hotload on
 
