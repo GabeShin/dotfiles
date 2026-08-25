@@ -21,10 +21,15 @@ FONT="${FONT:-SF Pro}"
 MONO="MesloLGL Nerd Font"
 NAME_WIDTH=16   # "claude-worker-1" is 15 characters
 
-# Codex has to be asked; Claude reports itself through its status line. The
-# collector decides whether a poll is actually due, so calling it every tick is
-# cheap -- but it must never hold up the bar, hence the detached subshell.
-[ -x "$COLLECTOR" ] && ( "$COLLECTOR" codex-poll >/dev/null 2>&1 & )
+# Codex has to be asked; Claude mostly reports itself through its status line,
+# except when it is maxed out -- then no session can run and only a probe can
+# tell you. The collector decides whether either is actually due, so calling
+# both every tick is cheap; neither may hold up the bar, hence the detached
+# subshells.
+if [ -x "$COLLECTOR" ]; then
+    ( "$COLLECTOR" codex-poll   >/dev/null 2>&1 & )
+    ( "$COLLECTOR" claude-probe >/dev/null 2>&1 & )
+fi
 
 shopt -s nullglob
 # Enumerate the accounts that *exist*, not the ones that happen to have
@@ -56,10 +61,11 @@ fi
 read_account() {
     local rec="$1"
     IFS=$'\t' read -r acc_kind acc_label acc_file <<< "$rec"
-    acc_status=pending acc_five='-' acc_week='-' acc_resets='-' acc_updated='-' acc_plan='-'
+    acc_status=pending acc_five='-' acc_week='-' acc_resets='-' acc_updated='-'
+    acc_plan='-' acc_note=''
     [ -f "$acc_file" ] || return 0
-    IFS=$'\t' read -r _ _ acc_status acc_five acc_week acc_resets acc_updated acc_plan \
-        < "$acc_file" 2>/dev/null || acc_status=pending
+    IFS=$'\t' read -r _ _ acc_status acc_five acc_week acc_resets acc_updated \
+        acc_plan acc_note < "$acc_file" 2>/dev/null || acc_status=pending
     return 0
 }
 
@@ -173,6 +179,19 @@ build_popup() {
         dot="$([ "$acc_kind" = codex ] && echo "$MAGENTA" || echo "$BLUE")"
 
         case "$acc_status" in
+            limited)
+                # The whole reason this row exists: an account you cannot open
+                # a session in, so say plainly that it is spent and when it is
+                # back. The note is whatever Claude Code itself said.
+                text="$(printf '%-*s %s  MAXED OUT  %s' "$NAME_WIDTH" "$acc_label" \
+                        "$(gauge 100)" "${acc_note:-out of quota}")"
+                color="$RED"
+                ;;
+            available)
+                text="$(printf '%-*s usable, not measured -- open a session for numbers' \
+                        "$NAME_WIDTH" "$acc_label")"
+                color="$GREY"
+                ;;
             pending)
                 text="$(printf '%-*s not measured yet -- open a session to populate' \
                         "$NAME_WIDTH" "$acc_label")"
@@ -251,12 +270,20 @@ spark_cell() {
     printf '%s' "${SPARK[$i]}"
 }
 
-line='' worst_pct=-1 worst_label='' any_auth=0
+line='' worst_pct=-1 worst_label='' any_auth=0 any_limited=0
 for rec in "${accounts[@]}"; do
     read_account "$rec"
     case "$acc_status" in
-        auth)    line+='!'; any_auth=1 ;;
-        pending) line+='·' ;;
+        limited)
+            # Full cell: whatever the exact figure, none of it is yours today.
+            line+='█'; any_limited=1
+            if [ 100 -gt "$worst_pct" ]; then
+                worst_pct=100; worst_label="$acc_label"
+            fi
+            ;;
+        auth)      line+='!'; any_auth=1 ;;
+        available) line+='·' ;;
+        pending)   line+='·' ;;
         *)
             if [ "$acc_week" = '-' ]; then
                 line+='·'
@@ -287,7 +314,9 @@ fi
 # The label carries magnitude, so let the icon carry "something needs a look":
 # a signed-out account cannot be measured at all, and no percentage will say so.
 icon_color="$WHITE"
-[ "$any_auth" -eq 1 ] && icon_color="$RED"
+if [ "$any_auth" -eq 1 ] || [ "$any_limited" -eq 1 ]; then
+    icon_color="$RED"
+fi
 
 sketchybar --set "$NAME" drawing=on \
                          icon='󰚩' \

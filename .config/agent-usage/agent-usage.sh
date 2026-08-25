@@ -18,15 +18,26 @@
 #
 # State is one file per account under ~/.cache/agent-usage, tab separated:
 #
-#   kind  label  status  five_pct  week_pct  week_resets_at  updated_at  plan
+#   kind  label  status  five_pct  week_pct  week_resets_at  updated_at  plan  note
 #
-# status is ok, auth (signed out -- the number cannot be fetched until you log
-# in again) or unknown (nothing measured yet). Unknown numbers are "-", never
-# 0, so the bar can tell an idle account from an unmeasured one. Presentation
+# status is ok, limited (the account is out of quota and refusing work),
+# available (usable, but no numbers yet), auth (signed out -- the number cannot
+# be fetched until you log in again) or unknown (nothing measured yet). note is
+# free text for whatever the source said, e.g. when a limit resets.
+#
+# Unknown numbers are "-", never 0, so the bar can tell an idle account from an
+# unmeasured one. Presentation
 # is the bar's job, so the fields stay separate and raw -- same split as
 # agent-notify.
 #
-# Usage: agent-usage.sh <claude-statusline|codex-poll>
+#   claude-probe       A maxed-out account is the one you cannot open a session
+#                      in, so its status line never runs and it would show as
+#                      "unmeasured" -- the account most worth seeing, invisible.
+#                      A one-turn `claude -p` answers it: a refused request
+#                      reports 429 and the reset time for zero tokens and zero
+#                      cost.
+#
+# Usage: agent-usage.sh <claude-statusline|codex-poll|claude-probe>
 
 set -u
 
@@ -64,16 +75,28 @@ LOCK_DIR=""   # set by codex_poll; the EXIT trap needs it at global scope
 CODEX_REFRESH_OK="${AGENT_USAGE_CODEX_REFRESH:-300}"
 CODEX_REFRESH_AUTH="${AGENT_USAGE_CODEX_REFRESH_AUTH:-1800}"
 
+# How long each Claude probe result stays good. An exhausted account is the one
+# case worth re-checking often -- it is the account you cannot open a session
+# in, so the probe is the only thing that can tell you when it frees up. A
+# probe that comes back 429 is free (zero tokens, zero cost); one that succeeds
+# spends a trivial turn, so those back off hard.
+CLAUDE_PROBE_PENDING="${AGENT_USAGE_PROBE_PENDING:-900}"      # never measured
+CLAUDE_PROBE_LIMITED="${AGENT_USAGE_PROBE_LIMITED:-1800}"     # out of quota
+CLAUDE_PROBE_AVAILABLE="${AGENT_USAGE_PROBE_AVAILABLE:-21600}"  # usable, unmeasured
+CLAUDE_PROBE_OK="${AGENT_USAGE_PROBE_OK:-21600}"              # has real numbers
+CLAUDE_PROBE_MODEL="${AGENT_USAGE_PROBE_MODEL:-}"
+
 write_state() {
-    # write_state <key> <kind> <label> <status> <five> <week> <resets> <plan>
+    # write_state <key> <kind> <label> <status> <five> <week> <resets> <plan> [note]
     local key="$1" kind="$2" label="$3" status="$4"
-    local five="$5" week="$6" resets="$7" plan="$8"
+    local five="$5" week="$6" resets="$7" plan="$8" note="${9:-}"
     mkdir -p "$STATE_DIR" || return 0
     # Write via a temp file: the bar reads this directory on a timer and must
     # never see a half-written line.
     local tmp="$STATE_DIR/.tmp.$key.$$"
-    if printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$kind" "$label" "$status" "$five" "$week" "$resets" "$(date +%s)" "$plan" \
+    if printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$kind" "$label" "$status" "$five" "$week" "$resets" "$(date +%s)" \
+        "$plan" "$note" \
         > "$tmp" 2>/dev/null
     then
         mv -f "$tmp" "$STATE_DIR/$key" 2>/dev/null
@@ -292,12 +315,110 @@ codex_poll() {
     notify_bar
 }
 
+
+# ---------------------------------------------------------------------------
+# claude-probe
+# ---------------------------------------------------------------------------
+
+# When may this account be probed again? Cheapest first: an account with real
+# numbers barely needs it, an exhausted one benefits most.
+claude_probe_due() {
+    local key="$1" file="$STATE_DIR/$key" status updated age max
+    [ -n "${AGENT_USAGE_FORCE:-}" ] && return 0
+    [ -f "$file" ] || return 0
+    IFS=$'\t' read -r _ _ status _ _ _ updated _ < "$file" 2>/dev/null || return 0
+    case "${updated:-}" in ''|*[!0-9]*) return 0 ;; esac
+    age=$(( $(date +%s) - updated ))
+    case "${status:-}" in
+        limited)   max="$CLAUDE_PROBE_LIMITED" ;;
+        available) max="$CLAUDE_PROBE_AVAILABLE" ;;
+        ok)        max="$CLAUDE_PROBE_OK" ;;
+        *)         max="$CLAUDE_PROBE_PENDING" ;;
+    esac
+    [ "$age" -ge "$max" ]
+}
+
+claude_probe_one() {
+    local dir="$1" key="$2" reply fields is_error http result
+
+    [ -d "$dir" ] || return 0
+    claude_probe_due "$key" || return 0
+
+    local model_args=()
+    [ -n "$CLAUDE_PROBE_MODEL" ] && model_args=(--model "$CLAUDE_PROBE_MODEL")
+
+    # One turn, shortest possible prompt. `alarm` rather than a shell timeout:
+    # macOS has no timeout(1), and a wedged probe must not hold the lock.
+    reply="$(
+        CLAUDE_CONFIG_DIR="$dir" perl -e 'alarm 120; exec @ARGV' \
+            claude -p --output-format json --max-turns 1 "${model_args[@]}" hi \
+            2>/dev/null | tail -1
+    )"
+    [ -n "$reply" ] || return 0
+
+    fields="$(printf '%s' "$reply" | jq -r '
+        [ (.is_error // false | tostring)
+        , (.api_error_status // 0 | tostring)
+        , ( .result // ""
+            | gsub("\t"; " ") | gsub("\n"; " ")
+            # Claude Code pads the message with a suggested command; the bar
+            # only wants what is true (spent) and when it changes (resets).
+            | split(" · ") | map(select(startswith("run ") | not)) | join(" · ") )
+        ] | @tsv' 2>/dev/null)"
+    IFS=$'\t' read -r is_error http result <<< "$fields"
+    [ -n "${is_error:-}" ] || return 0
+
+    if [ "$http" = 429 ]; then
+        # Out of quota. A refused request costs nothing, which is what makes
+        # re-checking this state affordable. Record 100% so the bar draws it
+        # full: whatever the exact figure, none of it is available to you.
+        write_state "$key" claude "$key" limited \
+            "$UNKNOWN" 100 "$UNKNOWN" "$UNKNOWN" "${result:-out of quota}"
+    elif [ "$is_error" = false ]; then
+        # Usable. No percentage to be had this way -- print mode does not carry
+        # rate limits -- but "you can work here" is the useful half, and the
+        # real numbers arrive as soon as you open a session.
+        write_state "$key" claude "$key" available \
+            "$UNKNOWN" "$UNKNOWN" "$UNKNOWN" "$UNKNOWN" 'usable, not measured'
+    fi
+    # Any other error (network, auth, transient) leaves the last sample alone.
+}
+
+claude_probe() {
+    command -v claude >/dev/null 2>&1 || exit 0
+    command -v jq     >/dev/null 2>&1 || exit 0
+    command -v perl   >/dev/null 2>&1 || exit 0
+
+    mkdir -p "$STATE_DIR" || exit 0
+    # One prober at a time: each probe is a whole claude process.
+    LOCK_DIR="$STATE_DIR/.lock.claude"
+    if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+        if [ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
+            rmdir "$LOCK_DIR" 2>/dev/null
+            mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+        else
+            exit 0
+        fi
+    fi
+    trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+
+    local dir key
+    for dir in "$HOME"/.claude "$HOME"/.claude-worker-*; do
+        [ -d "$dir" ] || continue
+        key="${dir##*/}"; key="${key#.}"
+        claude_probe_one "$dir" "$key"
+    done
+
+    notify_bar
+}
+
 case "$MODE" in
     claude-statusline) claude_statusline ;;
     codex-poll)        codex_poll ;;
+    claude-probe)      claude_probe ;;
     *)
         echo "agent-usage: unknown mode '${MODE}'" >&2
-        echo "usage: agent-usage.sh <claude-statusline|codex-poll>" >&2
+        echo "usage: agent-usage.sh <claude-statusline|codex-poll|claude-probe>" >&2
         exit 2
         ;;
 esac

@@ -95,7 +95,9 @@ Claude Code reads hooks at startup — running sessions need a restart.
 shows every Claude / Codex subscription at once, so an unbalanced week is
 visible before it is expensive. The bar draws a sparkline -- one fixed cell per
 account, height by weekly usage -- and names the busiest account once it passes
-50%. Clicking opens the full table, which also offers a forced refresh.
+50%. A maxed-out account draws a full cell and reddens the icon; it is recorded
+as 100% because whatever the exact figure, none of it is available to you.
+Clicking opens the full table, which also offers a forced refresh.
 
 The account list comes from the config dirs (`~/.claude`, `~/.claude-worker-*`,
 `~/.codex`, `~/.codex-*`), not from which state files happen to exist. An
@@ -113,6 +115,15 @@ network call of our own, or a login:
   back for the session. Free, but it only updates while a session is running,
   so an untouched account goes stale (the bar dims its icon and the popup says
   how old the sample is).
+- **Claude, when maxed out** — an exhausted account cannot open a session, so
+  its status line never runs and it would sit there as "unmeasured": the
+  account most worth seeing, invisible. `claude -p --output-format json` with a
+  one-word prompt settles it. A refused request returns `api_error_status: 429`
+  with zero tokens and `total_cost_usd: 0`, and its `result` string carries the
+  reset time, so re-checking a spent account is free. A probe that *succeeds*
+  spends one trivial turn and only tells you the account is usable (print mode
+  carries no rate limits), so those back off to six hours; a 429 is re-checked
+  every thirty minutes, since that is the state you want to see end.
 - **Codex** (`codex`, `codex-work`) — no equivalent push, so ask the
   app-server: JSON-RPC `account/rateLimits/read` over `codex app-server`, with
   `CODEX_HOME` selecting the account. Live, but it costs a subprocess, so
