@@ -19,7 +19,9 @@ return {
 				graphql = { "prettier" },
 				liquid = { "prettier" },
 				lua = { "stylua" },
-				python = { "ruff", "black", "mypy" },
+				python = { "black" },
+				rust = { "rustfmt" },
+				toml = { "taplo" },
 			},
 			format_on_save = {
 				lsp_fallback = true,

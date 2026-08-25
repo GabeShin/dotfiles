@@ -30,6 +30,7 @@ return {
 				"graphql",
 				"emmet_ls",
 				"prismals",
+				"rust_analyzer",
 			},
 			-- automatically call vim.lsp.enable() on installed servers
 			automatic_enable = true,
