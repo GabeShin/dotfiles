@@ -198,6 +198,10 @@ automatically-unhide-macos-hidden-apps = false
     run = 'move-node-to-workspace 6'
 
 [[on-window-detected]]
+    if.app-id = 'org.mozilla.camoufox'
+    run = 'move-node-to-workspace 6'
+
+[[on-window-detected]]
     if.app-id = 'com.postmanlabs.mac'
     run = 'move-node-to-workspace 7'
 
