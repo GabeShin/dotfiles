@@ -100,7 +100,7 @@ forced refresh.
 Both halves read real server-reported quota, and neither needs a token, a
 network call of our own, or a login:
 
-- **Claude** (`claude`, `w1`, `w2`, `w3`) — Claude Code >= 2.1 hands
+- **Claude** (`claude`, `claude-worker-1..3`) — Claude Code >= 2.1 hands
   `rate_limits.five_hour` / `.seven_day` to the `statusLine` command on stdin.
   The script is that status line: it writes the state file and echoes a line
   back for the session. Free, but it only updates while a session is running,
@@ -114,10 +114,15 @@ network call of our own, or a login:
 
 State is one file per account under `~/.cache/agent-usage`, tab separated —
 `kind, label, status, five_pct, week_pct, week_resets_at, updated_at, plan` —
-same split as agent-notify, so the bar owns presentation. `status` is `ok`,
+same split as agent-notify, so the bar owns presentation. Accounts are named in
+full here (`claude-worker-2`, not agent-notify's `w2`): this item shows one at a
+time and has the room, and the full name is the one you type. `status` is `ok`,
 `auth` (signed out; the popup prints the `codex login` command to fix it) or
 `unknown` (no subscription quota, e.g. an API-key session). Unmeasured numbers
 are `-`, never `0`, so idle and unknown stay distinguishable.
+
+The popup is a table, so its rows use a monospace face and fixed-width cells --
+a ten-cell gauge is far easier to compare down a column than digits are.
 
 Two things that are easy to get wrong here:
 
@@ -127,6 +132,10 @@ Two things that are easy to get wrong here:
   keeps it in a versioned directory), so the script extends PATH itself,
   newest node first. Older node versions can be left with a broken or
   XProtect-removed vendor binary, so version order matters.
+- A statusLine payload can arrive with no `rate_limits` at all -- early in a
+  session, or on a repaint that raced the first response. Writing that through
+  would erase a good number, so a quota-less payload never overwrites an
+  account that has already reported; its sample just ages instead.
 
 **The Claude wiring lives outside this repo** and is not stowed, so a fresh
 machine needs it re-added by hand — a `statusLine` block in each of

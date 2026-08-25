@@ -15,7 +15,7 @@ sketchybar --add item agent_usage right \
                              update_freq=30 \
                              icon.font="MesloLGL Nerd Font:Bold:14.0" \
                              icon.padding_right=6 \
-                             label.max_chars=22 \
+                             label.max_chars=34 \
                              background.padding_left=8 \
                              popup.align=right \
                              popup.height=26 \

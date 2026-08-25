@@ -111,14 +111,15 @@ claude_statusline() {
     local payload
     payload="$(cat)"
 
-    # Keep the instance naming identical to agent-notify, so the two bar items
-    # label the same account the same way: claude, w1, w2, w3.
+    # The config dir names the account, spelled out: claude, claude-worker-1,
+    # claude-worker-2, claude-worker-3. agent-notify shortens these to w1/w2/w3
+    # because it packs several agents into one label, but this item shows one
+    # account at a time and has the room, and the full name is what you type.
     local instance
     case "${CLAUDE_CONFIG_DIR:-}" in
         "") instance=claude ;;
         *)  instance="${CLAUDE_CONFIG_DIR##*/}"
             instance="${instance#.}"
-            instance="${instance/claude-worker-/w}"
             ;;
     esac
 
@@ -150,9 +151,22 @@ claude_statusline() {
     local status=ok
     [ "$five" = "$UNKNOWN" ] && [ "$week" = "$UNKNOWN" ] && status=unknown
 
-    write_state "$instance" claude "$instance" "$status" \
-        "$five" "$week" "$UNKNOWN" "$UNKNOWN"
-    notify_bar
+    # A payload can arrive without rate limits even on a subscription -- early
+    # in a session, or on a repaint that raced the first response. Never let
+    # that erase a real number: keep the previous sample and let its age show
+    # instead. Only an account that has never reported writes "unknown".
+    local keep_previous=''
+    if [ "$status" = unknown ] && [ -f "$STATE_DIR/$instance" ]; then
+        local prev_status
+        IFS=$'\t' read -r _ _ prev_status _ < "$STATE_DIR/$instance" 2>/dev/null
+        [ "${prev_status:-}" = ok ] && keep_previous=1
+    fi
+
+    if [ -z "$keep_previous" ]; then
+        write_state "$instance" claude "$instance" "$status" \
+            "$five" "$week" "$UNKNOWN" "$UNKNOWN"
+        notify_bar
+    fi
 
     # Now render the status line itself. The account is worth naming here: with
     # four of these open at once, knowing which one you are typing into matters.
