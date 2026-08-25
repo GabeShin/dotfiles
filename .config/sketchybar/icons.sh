@@ -55,3 +55,11 @@ MODE_INSERT=􀂥
 MODE_VISUAL=􀂿
 MODE_CMD=􀂙
 MODE_PENDING=􀈏
+
+# Agents
+# The rest of this file is SF Symbols; these three are Nerd Font (Material
+# Design), because SF has no robot and no speedometer that read at bar size.
+# Any item using them must set a Nerd Font face -- SF Pro renders them blank.
+AGENT_WAITING=󱚞   # blocked on you       U+F169E md-robot-excited
+AGENT_DONE=󰚩      # finished a turn      U+F06A9 md-robot
+AGENT_USAGE=󰓅     # subscription quota   U+F04C5 md-speedometer

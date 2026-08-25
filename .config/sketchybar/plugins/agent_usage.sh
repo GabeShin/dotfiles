@@ -3,21 +3,29 @@
 # Renders the subscription quota readout from the state files written by
 # ~/.config/agent-usage/agent-usage.sh
 #
-# The bar shows all six accounts as a sparkline -- one fixed cell each, height
-# by weekly usage -- so an imbalance is visible as a shape without waiting for
-# anything to rotate. Clicking opens the full table.
+# One sketchybar item per account, not one label listing all of them. A label
+# is a single string with a single colour, so the previous sparkline had to
+# pick one colour for the whole row -- it chose the worst account's, which
+# painted five healthy accounts in the colour of the one that was spent. The
+# distribution was the entire reason to draw six cells, and it was the one
+# thing the drawing could not express.
+#
+# Also invoked as `agent_usage.sh popup` from a segment's click_script.
 
 source "$CONFIG_DIR/colors.sh"
+source "$CONFIG_DIR/icons.sh"
 
 STATE_DIR="${AGENT_USAGE_DIR:-$HOME/.cache/agent-usage}"
 COLLECTOR="$HOME/.config/agent-usage/agent-usage.sh"
+SELF="$CONFIG_DIR/plugins/agent_usage.sh"
+NAME="${NAME:-agent_usage}"
 
 # sketchybarrc keeps FONT as a plain shell variable, so it does not reach
 # plugin processes -- carry the same default rather than emitting ":Bold:12.0".
 FONT="${FONT:-SF Pro}"
 # The popup is a table, and a table needs fixed-width cells to be readable at a
-# glance. SF Pro is proportional, so the rows use the same monospace face the
-# agent_notify badge already relies on.
+# glance. SF Pro is proportional, so the rows -- and the bar's block characters,
+# which otherwise fall back to uneven widths -- use a monospace face.
 MONO="MesloLGL Nerd Font"
 NAME_WIDTH=16   # "claude-worker-1" is 15 characters
 
@@ -26,7 +34,7 @@ NAME_WIDTH=16   # "claude-worker-1" is 15 characters
 # tell you. The collector decides whether either is actually due, so calling
 # both every tick is cheap; neither may hold up the bar, hence the detached
 # subshells.
-if [ -x "$COLLECTOR" ]; then
+if [ -x "$COLLECTOR" ] && [ "${1:-}" != popup ]; then
     ( "$COLLECTOR" codex-poll   >/dev/null 2>&1 & )
     ( "$COLLECTOR" claude-probe >/dev/null 2>&1 & )
 fi
@@ -37,11 +45,13 @@ shopt -s nullglob
 # state file, and leaving it out entirely reads as "fine" when it means
 # "unknown" -- which is exactly the account you might then overload. Deriving
 # the list from the config dirs also means a new worker shows up on its own,
-# and fixes the rotation order instead of letting it depend on what has run.
+# and fixes the cell order instead of letting it depend on what has run.
 accounts=()   # kind <TAB> label <TAB> state file
 _seen=' '
 add_account() {
-    local kind="$1" dir="$2" label
+    local kind="$1"
+    local dir="$2"
+    local label
     [ -d "$dir" ] || return 0
     label="${dir##*/}"; label="${label#.}"
     case "$_seen" in *" $label "*) return 0 ;; esac
@@ -254,20 +264,19 @@ build_popup() {
     sketchybar "${popup_args[@]}" >/dev/null
 }
 
-if [ "$SENDER" = "mouse.clicked" ]; then
+if [ "$SENDER" = "mouse.clicked" ] || [ "${1:-}" = popup ]; then
     build_popup
     sketchybar --set "$NAME" popup.drawing=toggle
     exit 0
 fi
 
 # ---------------------------------------------------------------------------
-# Bar: all six accounts at once
+# Bar: one item per account, in a fixed order
 # ---------------------------------------------------------------------------
-# One cell per account in a fixed order, so a position always means the same
-# account and the shape of the row *is* the distribution -- which is the thing
-# worth noticing. This replaced a rotation that showed one account per tick:
-# three minutes to learn what a glance can tell you, with the account you
-# cared about likely off-screen at the moment you looked.
+# A position always means the same account, so the shape of the row *is* the
+# distribution -- which is the thing worth noticing. This replaced a rotation
+# that showed one account per tick: three minutes to learn what a glance can
+# tell you, with the account you cared about likely off-screen when you looked.
 SPARK=('▁' '▂' '▃' '▄' '▅' '▆' '▇' '█')
 
 spark_cell() {
@@ -279,56 +288,98 @@ spark_cell() {
     printf '%s' "${SPARK[$i]}"
 }
 
-line='' worst_pct=-1 worst_label='' any_auth=0 any_limited=0
+# Per-account glyph and colour, plus the pick of where to work next. Segments
+# are filled in order; the divider takes a slot of its own at the kind
+# boundary, and whatever is left over is switched off.
+glyphs=() colors=() tracks=() prev_kind=''
+best_label='' best_head=-1 any_auth=0 any_limited=0 measured=0
 for rec in "${accounts[@]}"; do
     read_account "$rec"
+    if [ -n "$prev_kind" ] && [ "$acc_kind" != "$prev_kind" ]; then
+        # A separator, not a reading: no track, and a glyph that is actually in
+        # the font. U+250A rendered as blank space here, which made the two
+        # halves look like one row with a gap in it.
+        glyphs+=('┃'); colors+=("$GREY"); tracks+=(off)
+    fi
+    prev_kind="$acc_kind"
+
     case "$acc_status" in
         limited)
             # The probe measures a refused account too, so this is its real
-            # figure -- which is 100% of whichever window shut the door.
-            line+="$(spark_cell "$acc_week")"; any_limited=1
-            if [ "${acc_week%%.*}" -gt "$worst_pct" ]; then
-                worst_pct="${acc_week%%.*}"; worst_label="$acc_label"
-            fi
+            # figure -- 100% of whichever window shut the door.
+            glyphs+=("$(spark_cell "$acc_week")"); colors+=("$RED"); tracks+=(on)
+            any_limited=1; measured=1
             ;;
-        auth)    line+='!'; any_auth=1 ;;
-        pending) line+='·' ;;
+        auth)
+            # No percentage can express "cannot be measured at all".
+            glyphs+=('!'); colors+=("$RED"); tracks+=(on); any_auth=1
+            ;;
+        pending)
+            glyphs+=('·'); colors+=("$GREY"); tracks+=(on)
+            ;;
         *)
             if [ "$acc_week" = '-' ]; then
-                line+='·'
+                glyphs+=('·'); colors+=("$GREY"); tracks+=(on)
             else
-                line+="$(spark_cell "$acc_week")"
-                if [ "${acc_week%%.*}" -gt "$worst_pct" ]; then
-                    worst_pct="${acc_week%%.*}"
-                    worst_label="$acc_label"
+                glyphs+=("$(spark_cell "$acc_week")")
+                colors+=("$(pct_color "$acc_week")")
+                tracks+=(on)
+                measured=1
+                # Which account should you actually open? The one with the most
+                # room in whichever window would stop you first -- a low weekly
+                # figure is no use if the five-hour window is nearly spent.
+                worst="${acc_week%%.*}"
+                case "${acc_five%%.*}" in
+                    ''|*[!0-9]*) ;;
+                    *) [ "${acc_five%%.*}" -gt "$worst" ] && worst="${acc_five%%.*}" ;;
+                esac
+                if [ $(( 100 - worst )) -gt "$best_head" ]; then
+                    best_head=$(( 100 - worst ))
+                    best_label="$acc_label"
                 fi
             fi
             ;;
     esac
 done
 
-# Naming the busiest account only earns its space once it is actually busy.
-# Below half, the number alone is enough and the bar stays quiet.
-if [ "$worst_pct" -lt 0 ]; then
-    label_text="$line  no data"
-    color="$GREY"
-elif [ "$worst_pct" -ge 50 ]; then
-    label_text="$line  $worst_label ${worst_pct}%"
-    color="$(pct_color "$worst_pct")"
+# The trailing text answers "so where do I work?", which is the question that
+# made this item worth building. Naming the busiest account -- what it used to
+# do -- named the one account you already cannot use.
+if [ "$measured" -eq 0 ]; then
+    hint_text='no data'; hint_color="$GREY"
+elif [ -z "$best_label" ]; then
+    hint_text='all spent'; hint_color="$RED"
+elif [ "$best_head" -ge 25 ]; then
+    hint_text="→ $best_label"; hint_color="$GREEN"
 else
-    label_text="$line  ${worst_pct}%"
-    color="$(pct_color "$worst_pct")"
+    hint_text="→ $best_label"; hint_color="$ORANGE"
 fi
 
-# The label carries magnitude, so let the icon carry "something needs a look":
-# a signed-out account cannot be measured at all, and no percentage will say so.
+# The icon is the one part that speaks for the whole cluster, so it carries
+# what no single account's colour can: something here needs a decision.
 icon_color="$WHITE"
-if [ "$any_auth" -eq 1 ] || [ "$any_limited" -eq 1 ]; then
-    icon_color="$RED"
+[ "$any_limited" -eq 1 ] && icon_color="$ORANGE"
+[ "$any_auth" -eq 1 ] && icon_color="$RED"
+
+# Fill the slots allocated by items/agent_usage.sh. Anything past the end is
+# dropped rather than drawn on top of the clock -- say so instead of silently
+# showing a short row.
+SEG_SLOTS=12
+count=${#glyphs[@]}
+if [ "$count" -gt "$SEG_SLOTS" ]; then
+    count="$SEG_SLOTS"
+    hint_text="→ $best_label (+$(( ${#glyphs[@]} - SEG_SLOTS )) more)"
 fi
 
-sketchybar --set "$NAME" drawing=on \
-                         icon='󰚩' \
-                         icon.color="$icon_color" \
-                         label="$label_text" \
-                         label.color="$color"
+set_args=(--set agent_usage drawing=on icon.color="$icon_color"
+          --set agent_usage.seg.hint label="$hint_text" label.color="$hint_color")
+for (( i = 0; i < SEG_SLOTS; i++ )); do
+    if [ "$i" -lt "$count" ]; then
+        set_args+=(--set "agent_usage.seg.s$i" drawing=on
+                         label="${glyphs[$i]}" label.color="${colors[$i]}"
+                         background.drawing="${tracks[$i]}")
+    else
+        set_args+=(--set "agent_usage.seg.s$i" drawing=off)
+    fi
+done
+sketchybar "${set_args[@]}" >/dev/null

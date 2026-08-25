@@ -62,12 +62,36 @@ Each plugin file returns a lazy.nvim plugin spec table. The leader key is `space
 
 ## Agent Notifications
 
-`agent-notify/agent-notify.sh` badges the sketchybar `agent_notify` item when a
-Claude Code or Codex agent finishes a turn, labelled with each agent's tmux
-window name (e.g. `pokemon  dotfiles  act-2`). State is one file per agent under
-`~/.cache/agent-notify`, keyed by tmux pane id; the file records kind, state,
-instance and location as separate tab-separated fields so the bar owns
-presentation.
+`agent-notify/agent-notify.sh` records when a Claude Code or Codex agent wants
+you, and the sketchybar `agent_notify` item draws one chip per agent in the
+**centre** of the bar, labelled with that agent's tmux window name. State is one
+file per agent under `~/.cache/agent-notify`, keyed by tmux pane id; the file
+records kind, state, instance and location as separate tab-separated fields so
+the bar owns presentation.
+
+Centre, not right: a blocked agent is an interrupt, and the middle of the screen
+is where the eye already is. The centre is otherwise empty, so the cluster costs
+nothing when nothing is waiting.
+
+One chip per agent rather than one label for all of them, because the two states
+mean different things and used to be flattened into whichever was loudest -- a
+single blocked agent turned the whole badge red, hiding that the others had
+merely finished. The states are told apart by **fill, not hue**: blocked is a
+solid pill, finished is plain text. Red-vs-green is the pair that collapses
+under the common colour-vision deficiencies, and it is also the wrong emphasis,
+since only one of the two states is asking you for anything.
+
+**Clicking a chip goes to that agent** -- switches the tmux client to its
+session, selects its window and pane, and raises kitty. Dismissing was all the
+old badge could do, which left you knowing that *something* wanted you and still
+hunting for it. Right-click clears a single chip; clicking the (invisible)
+anchor clears everything.
+
+Several panes legitimately share a window name -- three windows called
+`dotfiles` is normal -- so a colliding name earns the instance that
+distinguishes it (`dotfiles·worker-2`), and only then. The instance is recorded
+in full: it is no longer a bar label, so there is nothing to abbreviate for
+width.
 
 **The wiring lives outside this repo** and is not stowed, so a fresh machine
 needs it re-added by hand:
@@ -81,11 +105,15 @@ needs it re-added by hand:
   Must be an absolute path: `notify` is exec'd, not run through a shell.
   `~/.codex-work/config.toml` is a symlink to this file, so both share it.
 
-Badges never time out. A Claude badge clears when you send that session its
-next prompt (`UserPromptSubmit`) or quit it (`SessionEnd`). Codex has no "user
-replied" event, so codex badges clear once you are visibly looking at their pane
+Chips never time out. A Claude chip clears when you send that session its next
+prompt (`UserPromptSubmit`) or quit it (`SessionEnd`). Codex has no "user
+replied" event, so codex chips clear once you are visibly looking at their pane
 -- kitty frontmost and the pane active in an attached client, re-checked every
-`update_freq=5` seconds. Clicking the badge dismisses everything.
+`update_freq=5` seconds.
+
+What is currently drawn is read back from sketchybar rather than remembered in a
+file: `--reload` wipes every item, so a note on disk would go on claiming the
+chips existed for as long as the bar ran without them.
 
 Claude Code reads hooks at startup — running sessions need a restart.
 
@@ -93,11 +121,38 @@ Claude Code reads hooks at startup — running sessions need a restart.
 
 `agent-usage/agent-usage.sh` feeds the sketchybar `agent_usage` item, which
 shows every Claude / Codex subscription at once, so an unbalanced week is
-visible before it is expensive. The bar draws a sparkline -- one fixed cell per
-account, height by weekly usage -- and names the busiest account once it passes
-50%. A maxed-out account draws a full cell and reddens the icon; it is recorded
-as 100% because whatever the exact figure, none of it is available to you.
-Clicking opens the full table, which also offers a forced refresh.
+visible before it is expensive. The bar draws one small bar chart per account --
+a fixed slot each, height by weekly usage, against a faint track -- followed by
+an arrow naming **where to work next**. A maxed-out account fills its slot and
+turns the icon orange; it is recorded as 100% because whatever the exact figure,
+none of it is available to you. Clicking any part of the row opens the full
+table, which also offers a forced refresh.
+
+Each account is its own sketchybar item, not a cell in one label. A label is a
+single string with a single colour, so the previous sparkline had to pick one
+colour for all six accounts, and it chose the worst account's -- painting five
+healthy accounts in the colour of the one that was spent. The distribution was
+the entire reason to draw six cells, and it was the one thing the drawing could
+not express.
+
+The trailing hint names the account with the most room in whichever window would
+stop it first, because a low weekly figure is no use if the five-hour window is
+nearly spent. It used to name the *busiest* account, which is the one account
+you already cannot use.
+
+The slots are allocated empty at config-parse time by `items/agent_usage.sh`,
+not created on demand. Right-hand items are laid out from the right edge inward
+in the order they are added, but only while the config is being parsed; items
+added later, at runtime, land at the far right of the bar instead. Allocating
+the slots up front is what keeps the cluster beside its icon and off the clock's
+toes. Unused slots draw nothing, so the pool is simply generous (12), and a new
+account fills the next free one without a reload.
+
+The bars need the faint track behind them: eighth-block characters grow from the
+baseline, so without one a quiet account is a two-pixel dash floating in space,
+indistinguishable from a rendering artefact and impossible to read a height
+against. The divider between Claude and Codex is `┃`; `┊` renders as blank space
+in this font, which made the two halves look like one row with a gap in it.
 
 The account list comes from the config dirs (`~/.claude`, `~/.claude-worker-*`,
 `~/.codex`, `~/.codex-*`), not from which state files happen to exist. An
@@ -158,9 +213,10 @@ easier to compare down a column than digits are. Both the sparkline and the
 table need the monospace face, or the block characters fall back to uneven
 widths and stop lining up.
 
-The bar's colour tracks the busiest weekly percentage; the icon turns red only
-when an account is signed out, because that is the one problem no percentage
-can express.
+Each account's bar carries its own colour, so a spent account is red while the
+healthy ones stay green. The icon speaks for the cluster and so carries what no
+single account's colour can: orange when an account is out of quota, red when
+one is signed out -- the one problem no percentage can express.
 
 Both collectors take a lock before running. A lock is a directory plus the
 owner's pid: `mkdir` is the atomic part, and the pid is what lets the next run

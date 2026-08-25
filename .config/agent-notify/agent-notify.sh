@@ -61,8 +61,6 @@ else
         "") instance=claude ;;
         *)  instance="${CLAUDE_CONFIG_DIR##*/}"
             instance="${instance#.}"
-            # claude-worker-2 -> w2, so four of these still fit in the bar.
-            instance="${instance/claude-worker-/w}"
             ;;
     esac
 fi
@@ -81,6 +79,8 @@ esac
 
 mkdir -p "$STATE_DIR" || exit 0
 # kind, state, instance, location -- tab separated, one line, no JSON parser
-# needed. Presentation is the bar's job, so keep the fields separate.
+# needed. Presentation is the bar's job, so keep the fields separate. The
+# instance is written in full: the bar shows the location, and falls back to
+# the instance only to tell apart two agents whose windows share a name.
 printf '%s\t%s\t%s\t%s\n' "$kind" "$state" "$instance" "$where" > "$state_file"
 notify_bar
