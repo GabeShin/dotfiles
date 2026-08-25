@@ -30,12 +30,14 @@
 # is the bar's job, so the fields stay separate and raw -- same split as
 # agent-notify.
 #
-#   claude-probe       A maxed-out account is the one you cannot open a session
-#                      in, so its status line never runs and it would show as
-#                      "unmeasured" -- the account most worth seeing, invisible.
-#                      A one-turn `claude -p` answers it: a refused request
-#                      reports 429 and the reset time for zero tokens and zero
-#                      cost.
+#   claude-probe       An idle account never runs its status line, and a
+#                      maxed-out one cannot even open a session -- the account
+#                      most worth seeing would be the one that never reports.
+#                      A one-turn `claude -p --output-format stream-json` emits
+#                      a rate_limit_event carrying the same windows the status
+#                      line does, on refused requests too, so both cases become
+#                      measurable. Free when refused; one cheap haiku turn
+#                      otherwise.
 #
 # Usage: agent-usage.sh <claude-statusline|codex-poll|claude-probe>
 
@@ -80,11 +82,40 @@ CODEX_REFRESH_AUTH="${AGENT_USAGE_CODEX_REFRESH_AUTH:-1800}"
 # in, so the probe is the only thing that can tell you when it frees up. A
 # probe that comes back 429 is free (zero tokens, zero cost); one that succeeds
 # spends a trivial turn, so those back off hard.
-CLAUDE_PROBE_PENDING="${AGENT_USAGE_PROBE_PENDING:-900}"      # never measured
-CLAUDE_PROBE_LIMITED="${AGENT_USAGE_PROBE_LIMITED:-1800}"     # out of quota
-CLAUDE_PROBE_AVAILABLE="${AGENT_USAGE_PROBE_AVAILABLE:-21600}"  # usable, unmeasured
-CLAUDE_PROBE_OK="${AGENT_USAGE_PROBE_OK:-21600}"              # has real numbers
-CLAUDE_PROBE_MODEL="${AGENT_USAGE_PROBE_MODEL:-}"
+CLAUDE_PROBE_PENDING="${AGENT_USAGE_PROBE_PENDING:-900}"    # never measured
+CLAUDE_PROBE_LIMITED="${AGENT_USAGE_PROBE_LIMITED:-1800}"   # out of quota (free)
+CLAUDE_PROBE_OK="${AGENT_USAGE_PROBE_OK:-21600}"            # numbers going stale
+# The window figures are account-wide, so the cheapest model reports the same
+# numbers as the expensive one: haiku from an empty directory costs about a
+# tenth of what the default model with this repo's CLAUDE.md loaded does.
+CLAUDE_PROBE_MODEL="${AGENT_USAGE_PROBE_MODEL:-claude-haiku-4-5-20251001}"
+
+# A lock is a directory (mkdir is the atomic part) plus the owner's pid, which
+# is what lets the next run tell "still working" from "died holding it". Without
+# the pid a leaked lock silently disables collection until it ages out, and the
+# EXIT trap alone does not survive a kill.
+take_lock() {
+    local name="$1" owner
+    local dir="$STATE_DIR/.lock.$name"
+    if ! mkdir "$dir" 2>/dev/null; then
+        owner="$(cat "$dir/pid" 2>/dev/null)"
+        case "${owner:-}" in
+            ''|*[!0-9]*) ;;   # nothing recorded -- assume the owner is gone
+            *) kill -0 "$owner" 2>/dev/null && return 1 ;;
+        esac
+        rm -rf "$dir" 2>/dev/null
+        mkdir "$dir" 2>/dev/null || return 1
+    fi
+    printf '%s\n' "$$" > "$dir/pid" 2>/dev/null
+    LOCK_DIR="$dir"
+    trap release_lock EXIT INT TERM HUP
+    return 0
+}
+
+release_lock() {
+    [ -n "${LOCK_DIR:-}" ] && rm -rf "$LOCK_DIR" 2>/dev/null
+    return 0
+}
 
 write_state() {
     # write_state <key> <kind> <label> <status> <five> <week> <resets> <plan> [note]
@@ -178,16 +209,19 @@ claude_statusline() {
     # in a session, or on a repaint that raced the first response. Never let
     # that erase a real number: keep the previous sample and let its age show
     # instead. Only an account that has never reported writes "unknown".
-    local keep_previous=''
-    if [ "$status" = unknown ] && [ -f "$STATE_DIR/$instance" ]; then
-        local prev_status
-        IFS=$'\t' read -r _ _ prev_status _ < "$STATE_DIR/$instance" 2>/dev/null
-        [ "${prev_status:-}" = ok ] && keep_previous=1
+    local keep_previous='' prev_status='' prev_resets="$UNKNOWN"
+    if [ -f "$STATE_DIR/$instance" ]; then
+        IFS=$'\t' read -r _ _ prev_status _ _ prev_resets _ \
+            < "$STATE_DIR/$instance" 2>/dev/null
+        [ "$status" = unknown ] && [ "${prev_status:-}" = ok ] && keep_previous=1
     fi
 
     if [ -z "$keep_previous" ]; then
+        # The status line has no reset time in it -- only the probe does -- so
+        # carry forward whatever the last probe found instead of blanking the
+        # column every time the bar repaints.
         write_state "$instance" claude "$instance" "$status" \
-            "$five" "$week" "$UNKNOWN" "$UNKNOWN"
+            "$five" "$week" "${prev_resets:-$UNKNOWN}" "$UNKNOWN"
         notify_bar
     fi
 
@@ -225,7 +259,8 @@ codex_rate_limits() {
 
 # True when the cached sample for this account is still new enough to keep.
 state_fresh() {
-    local key="$1" file="$STATE_DIR/$key" status updated age max
+    local key="$1" status updated age max
+    local file="$STATE_DIR/$key"
     [ -n "${AGENT_USAGE_FORCE:-}" ] && return 1
     [ -f "$file" ] || return 1
     IFS=$'\t' read -r _ _ status _ _ _ updated _ < "$file" || return 1
@@ -296,17 +331,7 @@ codex_poll() {
     mkdir -p "$STATE_DIR" || exit 0
     # One poller at a time. Each call spawns an app-server for a dozen seconds,
     # so a pile-up would be worse than a skipped sample.
-    LOCK_DIR="$STATE_DIR/.lock.codex"
-    if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-        # Reclaim a lock left behind by a killed poller.
-        if [ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +5 2>/dev/null)" ]; then
-            rmdir "$LOCK_DIR" 2>/dev/null
-            mkdir "$LOCK_DIR" 2>/dev/null || exit 0
-        else
-            exit 0
-        fi
-    fi
-    trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+    take_lock codex || exit 0
 
     # Label these the way agent-notify does: the config dir names the account.
     codex_poll_home "$HOME/.codex"      codex      codex
@@ -323,65 +348,104 @@ codex_poll() {
 # When may this account be probed again? Cheapest first: an account with real
 # numbers barely needs it, an exhausted one benefits most.
 claude_probe_due() {
-    local key="$1" file="$STATE_DIR/$key" status updated age max
+    local key="$1" status updated age max
+    local file="$STATE_DIR/$key"
     [ -n "${AGENT_USAGE_FORCE:-}" ] && return 0
     [ -f "$file" ] || return 0
     IFS=$'\t' read -r _ _ status _ _ _ updated _ < "$file" 2>/dev/null || return 0
     case "${updated:-}" in ''|*[!0-9]*) return 0 ;; esac
     age=$(( $(date +%s) - updated ))
     case "${status:-}" in
-        limited)   max="$CLAUDE_PROBE_LIMITED" ;;
-        available) max="$CLAUDE_PROBE_AVAILABLE" ;;
-        ok)        max="$CLAUDE_PROBE_OK" ;;
-        *)         max="$CLAUDE_PROBE_PENDING" ;;
+        limited) max="$CLAUDE_PROBE_LIMITED" ;;
+        ok)      max="$CLAUDE_PROBE_OK" ;;
+        *)       max="$CLAUDE_PROBE_PENDING" ;;
     esac
     [ "$age" -ge "$max" ]
 }
 
 claude_probe_one() {
-    local dir="$1" key="$2" reply fields is_error http result
+    local dir="$1" key="$2" raw fields five week resets status note
 
     [ -d "$dir" ] || return 0
     claude_probe_due "$key" || return 0
 
+    # Run from an empty directory: the probe wants the account's quota, not
+    # whatever CLAUDE.md happens to sit in the working tree, and loading one
+    # multiplies the cost of the turn for no benefit.
+    local probe_cwd="$STATE_DIR/.probe-cwd"
+    mkdir -p "$probe_cwd" || return 0
+
     local model_args=()
     [ -n "$CLAUDE_PROBE_MODEL" ] && model_args=(--model "$CLAUDE_PROBE_MODEL")
 
-    # One turn, shortest possible prompt. `alarm` rather than a shell timeout:
-    # macOS has no timeout(1), and a wedged probe must not hold the lock.
-    reply="$(
-        CLAUDE_CONFIG_DIR="$dir" perl -e 'alarm 120; exec @ARGV' \
-            claude -p --output-format json --max-turns 1 "${model_args[@]}" hi \
-            2>/dev/null | tail -1
+    # `alarm` rather than a shell timeout: macOS has no timeout(1), and a
+    # wedged probe must not sit on the lock.
+    raw="$(
+        cd "$probe_cwd" &&
+        CLAUDE_CONFIG_DIR="$dir" perl -e 'alarm 150; exec @ARGV' \
+            claude -p --output-format stream-json --verbose --max-turns 1 \
+            "${model_args[@]}" hi </dev/null 2>/dev/null
     )"
-    [ -n "$reply" ] || return 0
+    [ -n "$raw" ] || return 0
 
-    fields="$(printf '%s' "$reply" | jq -r '
-        [ (.is_error // false | tostring)
-        , (.api_error_status // 0 | tostring)
-        , ( .result // ""
-            | gsub("\t"; " ") | gsub("\n"; " ")
-            # Claude Code pads the message with a suggested command; the bar
-            # only wants what is true (spent) and when it changes (resets).
-            | split(" · ") | map(select(startswith("run ") | not)) | join(" · ") )
-        ] | @tsv' 2>/dev/null)"
-    IFS=$'\t' read -r is_error http result <<< "$fields"
-    [ -n "${is_error:-}" ] || return 0
+    # Claude Code emits a rate_limit_event carrying the same windows the status
+    # line reports -- on a refused request too, which is what makes a maxed-out
+    # account measurable at all. utilization is a fraction, not a percentage.
+    fields="$(printf '%s\n' "$raw" | jq -s -r '
+        def pct: if type == "number" then (. * 1000 | round / 10 | tostring) else "-" end;
+        ( map(select(.type == "rate_limit_event")) | last | .rate_limit_info // {} ) as $r
+        | ( map(select(.type == "result")) | last // {} ) as $res
+        | ( $r.unifiedWindows // {} ) as $w
+        | [ ( $w.five_hour.utilization  | pct )
+          , ( $w.seven_day.utilization  | pct )
+          , ( $w.seven_day.resetsAt // "-" | tostring )
+          , ( if ($r.status == "rejected" or $r.overageStatus == "rejected")
+              then "limited" else "ok" end )
+          # Keep only the clause that says when it comes back; the rest of the
+          # message is a suggestion the bar has no room for.
+          , ( $res.result // ""
+              | gsub("[\t\n]"; " ")
+              | split(" · ") | map(select(test("reset"; "i"))) | join(" · ")
+              | sub("^your "; "") )
+          ] | @tsv' 2>/dev/null)"
 
-    if [ "$http" = 429 ]; then
-        # Out of quota. A refused request costs nothing, which is what makes
-        # re-checking this state affordable. Record 100% so the bar draws it
-        # full: whatever the exact figure, none of it is available to you.
-        write_state "$key" claude "$key" limited \
-            "$UNKNOWN" 100 "$UNKNOWN" "$UNKNOWN" "${result:-out of quota}"
-    elif [ "$is_error" = false ]; then
-        # Usable. No percentage to be had this way -- print mode does not carry
-        # rate limits -- but "you can work here" is the useful half, and the
-        # real numbers arrive as soon as you open a session.
-        write_state "$key" claude "$key" available \
-            "$UNKNOWN" "$UNKNOWN" "$UNKNOWN" "$UNKNOWN" 'usable, not measured'
+    IFS=$'\t' read -r five week resets status note <<< "$fields"
+
+    if [ "${five:--}" = '-' ] && [ "${week:--}" = '-' ]; then
+        # No windows came back. An expired login is worth saying out loud --
+        # it is the one failure you can act on, and it will not fix itself --
+        # but keep the last known numbers, since they are still the best guess
+        # at where the account stood. Anything else (network, a wedged probe)
+        # leaves the sample entirely alone.
+        case "$raw" in
+            *"Failed to authenticate"*|*"OAuth session expired"*|*"Please run /login"*)
+                local p_status p_five p_week p_resets p_updated
+                p_status='' p_five="$UNKNOWN" p_week="$UNKNOWN"
+                p_resets="$UNKNOWN" p_updated=0
+                if [ -f "$STATE_DIR/$key" ]; then
+                    IFS=$'\t' read -r _ _ p_status p_five p_week p_resets p_updated _ \
+                        < "$STATE_DIR/$key" 2>/dev/null
+                fi
+                # A running session reporting real numbers outranks a probe that
+                # could not start one: the credential may be too stale for a new
+                # process while a live session still holds a working token. Only
+                # call it signed out once nothing is reporting any more, or the
+                # two writers just overwrite each other every few seconds.
+                case "${p_updated:-}" in ''|*[!0-9]*) p_updated=0 ;; esac
+                if [ "${p_status:-}" = ok ] &&
+                   [ $(( $(date +%s) - p_updated )) -lt 600 ]; then
+                    return 0
+                fi
+                write_state "$key" claude "$key" auth \
+                    "${p_five:-$UNKNOWN}" "${p_week:-$UNKNOWN}" "${p_resets:-$UNKNOWN}" \
+                    "$UNKNOWN" 'login expired'
+                ;;
+        esac
+        return 0
     fi
-    # Any other error (network, auth, transient) leaves the last sample alone.
+
+    write_state "$key" claude "$key" "${status:-ok}" \
+        "${five:--}" "${week:--}" "${resets:--}" "$UNKNOWN" "${note:-}"
 }
 
 claude_probe() {
@@ -391,16 +455,7 @@ claude_probe() {
 
     mkdir -p "$STATE_DIR" || exit 0
     # One prober at a time: each probe is a whole claude process.
-    LOCK_DIR="$STATE_DIR/.lock.claude"
-    if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-        if [ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +10 2>/dev/null)" ]; then
-            rmdir "$LOCK_DIR" 2>/dev/null
-            mkdir "$LOCK_DIR" 2>/dev/null || exit 0
-        else
-            exit 0
-        fi
-    fi
-    trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+    take_lock claude || exit 0
 
     local dir key
     for dir in "$HOME"/.claude "$HOME"/.claude-worker-*; do

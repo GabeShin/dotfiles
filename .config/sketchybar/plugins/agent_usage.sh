@@ -180,17 +180,16 @@ build_popup() {
 
         case "$acc_status" in
             limited)
-                # The whole reason this row exists: an account you cannot open
-                # a session in, so say plainly that it is spent and when it is
-                # back. The note is whatever Claude Code itself said.
-                text="$(printf '%-*s %s  MAXED OUT  %s' "$NAME_WIDTH" "$acc_label" \
-                        "$(gauge 100)" "${acc_note:-out of quota}")"
+                # Same columns as any other row -- the probe returns real
+                # windows even for a refused request -- but red, and the last
+                # column says when it comes back instead of counting down,
+                # because that is the sentence Claude Code itself gave us.
+                text="$(printf '%-*s %s %s   %s %s   %s' \
+                        "$NAME_WIDTH" "$acc_label" \
+                        "$(gauge "$acc_week")" "$(pct_cell "$acc_week")" \
+                        "$(gauge "$acc_five")" "$(pct_cell "$acc_five")" \
+                        "${acc_note:-out of quota}")"
                 color="$RED"
-                ;;
-            available)
-                text="$(printf '%-*s usable, not measured -- open a session for numbers' \
-                        "$NAME_WIDTH" "$acc_label")"
-                color="$GREY"
                 ;;
             pending)
                 text="$(printf '%-*s not measured yet -- open a session to populate' \
@@ -198,8 +197,18 @@ build_popup() {
                 color="$GREY"
                 ;;
             auth)
-                text="$(printf '%-*s signed out -- run:  CODEX_HOME=~/.%s codex login' \
-                        "$NAME_WIDTH" "$acc_label" "$acc_label")"
+                # Print the command that actually fixes it, which differs per
+                # kind -- and for the default Claude dir needs no env var.
+                local fix
+                if [ "$acc_kind" = codex ]; then
+                    fix="CODEX_HOME=~/.$acc_label codex login"
+                elif [ "$acc_label" = claude ]; then
+                    fix="claude auth login"
+                else
+                    fix="CLAUDE_CONFIG_DIR=~/.$acc_label claude auth login"
+                fi
+                text="$(printf '%-*s signed out -- run:  %s' \
+                        "$NAME_WIDTH" "$acc_label" "$fix")"
                 color="$RED"
                 ;;
             *)
@@ -275,15 +284,15 @@ for rec in "${accounts[@]}"; do
     read_account "$rec"
     case "$acc_status" in
         limited)
-            # Full cell: whatever the exact figure, none of it is yours today.
-            line+='█'; any_limited=1
-            if [ 100 -gt "$worst_pct" ]; then
-                worst_pct=100; worst_label="$acc_label"
+            # The probe measures a refused account too, so this is its real
+            # figure -- which is 100% of whichever window shut the door.
+            line+="$(spark_cell "$acc_week")"; any_limited=1
+            if [ "${acc_week%%.*}" -gt "$worst_pct" ]; then
+                worst_pct="${acc_week%%.*}"; worst_label="$acc_label"
             fi
             ;;
-        auth)      line+='!'; any_auth=1 ;;
-        available) line+='·' ;;
-        pending)   line+='·' ;;
+        auth)    line+='!'; any_auth=1 ;;
+        pending) line+='·' ;;
         *)
             if [ "$acc_week" = '-' ]; then
                 line+='·'

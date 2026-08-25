@@ -115,15 +115,25 @@ network call of our own, or a login:
   back for the session. Free, but it only updates while a session is running,
   so an untouched account goes stale (the bar dims its icon and the popup says
   how old the sample is).
-- **Claude, when maxed out** — an exhausted account cannot open a session, so
-  its status line never runs and it would sit there as "unmeasured": the
-  account most worth seeing, invisible. `claude -p --output-format json` with a
-  one-word prompt settles it. A refused request returns `api_error_status: 429`
-  with zero tokens and `total_cost_usd: 0`, and its `result` string carries the
-  reset time, so re-checking a spent account is free. A probe that *succeeds*
-  spends one trivial turn and only tells you the account is usable (print mode
-  carries no rate limits), so those back off to six hours; a 429 is re-checked
-  every thirty minutes, since that is the state you want to see end.
+- **Claude, when idle or maxed out** — an account nobody has opened never runs
+  its status line, and an exhausted one *cannot* open a session at all, so the
+  account most worth seeing was the one that never reported. A one-turn
+  `claude -p --output-format stream-json` settles both: it emits a
+  `rate_limit_event` whose `unifiedWindows` carry the same five-hour and
+  seven-day figures the status line does, plus real `resetsAt` epochs — and it
+  emits them on a *refused* request too. `utilization` there is a fraction, not
+  a percentage. A refused probe costs nothing (`total_cost_usd: 0`, zero
+  tokens), so a spent account is re-checked every thirty minutes; a successful
+  one spends a turn, so those back off to six hours. The probe runs haiku from
+  an empty directory — the windows are account-wide, so the cheapest model
+  reports the same numbers, and not loading a CLAUDE.md cuts the cost about
+  tenfold.
+
+  Two rules keep the probe from fighting the status line: it never blanks a
+  sample it failed to refresh, and it will not mark an account signed out while
+  a live session is still reporting real numbers for it (a credential can be
+  too stale for a new process while an open session still holds a working
+  token).
 - **Codex** (`codex`, `codex-work`) — no equivalent push, so ask the
   app-server: JSON-RPC `account/rateLimits/read` over `codex app-server`, with
   `CODEX_HOME` selecting the account. Live, but it costs a subprocess, so
@@ -149,6 +159,11 @@ The bar's colour tracks the busiest weekly percentage; the icon turns red only
 when an account is signed out, because that is the one problem no percentage
 can express.
 
+Both collectors take a lock before running. A lock is a directory plus the
+owner's pid: `mkdir` is the atomic part, and the pid is what lets the next run
+tell "still working" from "died holding it" — without it a leaked lock silently
+disables collection until it ages out.
+
 Two things that are easy to get wrong here:
 
 - `codex app-server` exits when stdin closes, which happens before the async
@@ -157,6 +172,9 @@ Two things that are easy to get wrong here:
   keeps it in a versioned directory), so the script extends PATH itself,
   newest node first. Older node versions can be left with a broken or
   XProtect-removed vendor binary, so version order matters.
+- `local a="$1" b="$DIR/$a"` does not work: bash expands every argument to
+  `local` before assigning any of them, so `$a` is either unset (with `set -u`)
+  or, worse, a leftover from the caller's scope. Declare on separate lines.
 - A statusLine payload can arrive with no `rate_limits` at all -- early in a
   session, or on a repaint that raced the first response. Writing that through
   would erase a good number, so a quota-less payload never overwrites an
