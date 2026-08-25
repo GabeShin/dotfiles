@@ -124,7 +124,10 @@ network call of our own, or a login:
   emits them on a *refused* request too. `utilization` there is a fraction, not
   a percentage. A refused probe costs nothing (`total_cost_usd: 0`, zero
   tokens), so a spent account is re-checked every thirty minutes; a successful
-  one spends a turn, so those back off to six hours. The probe runs haiku from
+  one spends a turn, so an account that already has numbers is only re-measured
+  daily. The intervals run from the last write by *either* collector, and the
+  status line writes on every repaint — so an account you actually work in keeps
+  itself fresh for nothing and is never probed. Only idle accounts spend a turn. The probe runs haiku from
   an empty directory — the windows are account-wide, so the cheapest model
   reports the same numbers, and not loading a CLAUDE.md cuts the cost about
   tenfold.

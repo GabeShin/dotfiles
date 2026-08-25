@@ -6,13 +6,21 @@
 # unbalance, and an unbalanced week costs money. This collects what each
 # account has actually spent so the bar can show it.
 #
-# Two producers, one state format:
+# Three producers, one state format:
 #
 #   claude-statusline  Claude Code >= 2.1 hands the live rate limits to the
 #                      statusLine command on stdin, so reading them costs
 #                      nothing: no token, no network, no login. This mode
 #                      doubles as the status line itself, echoing a line to
 #                      stdout for the session it was called from.
+#   claude-probe       An idle account never runs its status line, and a
+#                      maxed-out one cannot even open a session -- so the
+#                      account most worth seeing would be the one that never
+#                      reports. A one-turn `claude -p --output-format
+#                      stream-json` emits a rate_limit_event carrying the same
+#                      windows the status line does, on refused requests too,
+#                      which makes both cases measurable. Free when refused,
+#                      one cheap haiku turn otherwise.
 #   codex-poll         Codex pushes nothing, so ask its app-server
 #                      (`account/rateLimits/read`) and cache the answer.
 #
@@ -20,24 +28,19 @@
 #
 #   kind  label  status  five_pct  week_pct  week_resets_at  updated_at  plan  note
 #
-# status is ok, limited (the account is out of quota and refusing work),
-# available (usable, but no numbers yet), auth (signed out -- the number cannot
-# be fetched until you log in again) or unknown (nothing measured yet). note is
-# free text for whatever the source said, e.g. when a limit resets.
+# status is one of:
+#
+#   ok        measured and usable
+#   limited   out of quota and refusing work; note says when it comes back
+#   auth      signed out, and no number can be fetched until you log in again
+#   unknown   reported, but carries no subscription quota (an API-key session)
+#
+# The bar synthesises a fifth, "pending", for an account with no file at all.
+# note is free text from whatever the source said, e.g. when a limit resets.
 #
 # Unknown numbers are "-", never 0, so the bar can tell an idle account from an
-# unmeasured one. Presentation
-# is the bar's job, so the fields stay separate and raw -- same split as
-# agent-notify.
-#
-#   claude-probe       An idle account never runs its status line, and a
-#                      maxed-out one cannot even open a session -- the account
-#                      most worth seeing would be the one that never reports.
-#                      A one-turn `claude -p --output-format stream-json` emits
-#                      a rate_limit_event carrying the same windows the status
-#                      line does, on refused requests too, so both cases become
-#                      measurable. Free when refused; one cheap haiku turn
-#                      otherwise.
+# unmeasured one. Presentation is the bar's job, so the fields stay separate and
+# raw -- same split as agent-notify.
 #
 # Usage: agent-usage.sh <claude-statusline|codex-poll|claude-probe>
 
@@ -79,12 +82,17 @@ CODEX_REFRESH_AUTH="${AGENT_USAGE_CODEX_REFRESH_AUTH:-1800}"
 
 # How long each Claude probe result stays good. An exhausted account is the one
 # case worth re-checking often -- it is the account you cannot open a session
-# in, so the probe is the only thing that can tell you when it frees up. A
-# probe that comes back 429 is free (zero tokens, zero cost); one that succeeds
-# spends a trivial turn, so those back off hard.
+# in, so the probe is the only thing that can tell you when it frees up, and a
+# refused request is free (zero tokens, zero cost). A probe that succeeds costs
+# a turn, so an account that already has numbers is only re-measured daily.
+#
+# Note these intervals are measured against the last write from *either*
+# collector, and the status line writes on every repaint -- so an account you
+# actually work in keeps itself fresh for nothing and is never probed. Only
+# genuinely idle accounts ever spend a turn.
 CLAUDE_PROBE_PENDING="${AGENT_USAGE_PROBE_PENDING:-900}"    # never measured
 CLAUDE_PROBE_LIMITED="${AGENT_USAGE_PROBE_LIMITED:-1800}"   # out of quota (free)
-CLAUDE_PROBE_OK="${AGENT_USAGE_PROBE_OK:-21600}"            # numbers going stale
+CLAUDE_PROBE_OK="${AGENT_USAGE_PROBE_OK:-86400}"            # numbers going stale
 # The window figures are account-wide, so the cheapest model reports the same
 # numbers as the expensive one: haiku from an empty directory costs about a
 # tenth of what the default model with this repo's CLAUDE.md loaded does.
