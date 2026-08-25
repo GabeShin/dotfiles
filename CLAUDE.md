@@ -60,6 +60,20 @@ Each plugin file returns a lazy.nvim plugin spec table. The leader key is `space
 - **Helper**: C program in `helper/` for CPU stats (built via `make`)
 - Integrates with AeroSpace for workspace indicators
 
+Two things worth knowing before changing any item's appearance:
+
+- **Layout order depends on *when* an item is added.** Right-hand items lay out
+  from the right edge inward in the order added, but only while `sketchybarrc`
+  is being parsed. Items added later, at runtime by a plugin, land at the far
+  right of the bar instead. If a plugin needs a row of items, allocate them
+  empty at parse time and fill them later, as `items/agent_usage.sh` does.
+- **`--query` does not report item-level `background`.** It returns
+  `icon.background` and `label.background`, but the item's own background is
+  absent from the output entirely -- a filled pill that failed to draw looks
+  exactly like one that worked. Verify appearance by screenshotting the bar
+  (`screencapture -x -R0,0,<width>,60`, crop with `sips`) rather than by
+  querying it.
+
 ## Agent Notifications
 
 `agent-notify/agent-notify.sh` records when a Claude Code or Codex agent wants
