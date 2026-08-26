@@ -48,12 +48,39 @@ shopt -s nullglob
 # and fixes the cell order instead of letting it depend on what has run.
 accounts=()   # kind <TAB> label <TAB> state file
 _seen=' '
+
+# Is this directory an account, or just something sitting next to one? Claude
+# Code creates `<config-dir>.lock` while it writes its config, and a glob of
+# `.claude-worker-*` matches that happily. A false positive here is not
+# cosmetic: the probe runs `claude` against whatever it is handed, which
+# *creates* a config skeleton inside the lock directory and then reports it as
+# an account that is signed out.
+#
+# Two independent guards, because they fail differently:
+#   - a dotted suffix is a lock or backup artefact, never an account;
+#   - a real account carries the file that makes it usable -- settings.json for
+#     Claude, since this whole feature runs from its statusLine block, and
+#     config.toml for Codex. A signed-out account still has both, so the
+#     genuine "signed out" case is untouched.
+is_account() {
+    local kind="$1"
+    local dir="$2"
+    local label="$3"
+    case "$label" in *.*) return 1 ;; esac
+    case "$kind" in
+        claude) [ -f "$dir/settings.json" ] || return 1 ;;
+        codex)  [ -f "$dir/config.toml" ]   || return 1 ;;
+    esac
+    return 0
+}
+
 add_account() {
     local kind="$1"
     local dir="$2"
     local label
     [ -d "$dir" ] || return 0
     label="${dir##*/}"; label="${label#.}"
+    is_account "$kind" "$dir" "$label" || return 0
     case "$_seen" in *" $label "*) return 0 ;; esac
     _seen+="$label "
     accounts+=("$kind"$'\t'"$label"$'\t'"$STATE_DIR/$label")

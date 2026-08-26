@@ -456,6 +456,25 @@ claude_probe_one() {
         "${five:--}" "${week:--}" "${resets:--}" "$UNKNOWN" "${note:-}"
 }
 
+# Is this directory an account, or just something sitting next to one? Claude
+# Code creates `<config-dir>.lock` while it writes its config, and a glob of
+# `.claude-worker-*` matches that happily. Getting this wrong is not cosmetic:
+# the probe runs `claude` against whatever it is handed, and doing that to a
+# lock directory *creates* a config skeleton inside it, which then reports back
+# as an account that is signed out.
+#
+# Two independent guards, because they fail differently: a dotted suffix is a
+# lock or backup artefact and never an account, and a real account carries the
+# settings.json this whole feature runs from. A signed-out account still has
+# one, so the genuine "signed out" case is untouched.
+is_claude_account() {
+    local dir="$1"
+    local key="$2"
+    case "$key" in *.*) return 1 ;; esac
+    [ -f "$dir/settings.json" ] || return 1
+    return 0
+}
+
 claude_probe() {
     command -v claude >/dev/null 2>&1 || exit 0
     command -v jq     >/dev/null 2>&1 || exit 0
@@ -469,6 +488,7 @@ claude_probe() {
     for dir in "$HOME"/.claude "$HOME"/.claude-worker-*; do
         [ -d "$dir" ] || continue
         key="${dir##*/}"; key="${key#.}"
+        is_claude_account "$dir" "$key" || continue
         claude_probe_one "$dir" "$key"
     done
 

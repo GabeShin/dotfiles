@@ -192,6 +192,17 @@ signed out); leaving it out entirely would read as "fine" when it means
 "unknown", which is exactly the account you might then overload. A new worker
 dir shows up on its own, and the cell order never shifts.
 
+Not every directory matching those globs is an account, though. Claude Code
+creates `<config-dir>.lock` while it writes, and `.claude-worker-*` matches that
+happily. Getting it wrong is not cosmetic: the probe runs `claude` against
+whatever it is handed, and doing that to a lock directory *creates* a config
+skeleton inside it, which then reports back as an account that is signed out --
+so the bar grew two phantom accounts and told you to log into them. Two
+independent guards now, one by name and one by content: a dotted suffix is an
+artefact and never an account, and a real account carries the file that makes it
+usable (`settings.json` for Claude, `config.toml` for Codex). A genuinely
+signed-out account still has both, so that case is unaffected.
+
 Both halves read real server-reported quota, and neither needs a token, a
 network call of our own, or a login:
 
