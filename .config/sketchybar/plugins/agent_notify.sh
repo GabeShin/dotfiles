@@ -38,13 +38,20 @@ if [ "${1:-}" = focus ]; then
     pane="%${key#pane-}"
 
     if [ "${BUTTON:-left}" != right ] && [ "${key#pane-}" != "$key" ]; then
-        if session="$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)" \
-           && [ -n "$session" ]; then
-            # switch-client needs a client to act on, and there may be several
-            # attached to different sessions -- take the one used most recently.
-            client="$(tmux list-clients -F '#{client_activity} #{client_name}' 2>/dev/null \
-                      | sort -rn | head -1 | cut -d' ' -f2-)"
-            [ -n "$client" ] && tmux switch-client -c "$client" -t "$session" 2>/dev/null
+        if tmux has-session 2>/dev/null && \
+           tmux display-message -p -t "$pane" '#{session_name}' >/dev/null 2>&1; then
+            # One call does session, window and pane: switch-client resolves a
+            # pane id all the way down, so the agent's session comes with it.
+            #
+            # Deliberately no -c. A client is addressed by its tty path, and a
+            # suspended client keeps that path -- so `-c /dev/ttys000` picks
+            # whichever of the two tmux finds first, which was the suspended
+            # one. The session switch then landed on a client nobody was
+            # looking at, while select-pane still worked (it acts on the window,
+            # not through a client) -- so the pane moved and the session did
+            # not. Left to itself, tmux uses the most recently used client,
+            # which is the one in front of you.
+            tmux switch-client -t "$pane" 2>/dev/null
             tmux select-window -t "$pane" 2>/dev/null
             tmux select-pane   -t "$pane" 2>/dev/null
             open -a kitty 2>/dev/null
@@ -91,26 +98,46 @@ fi
 # ---------------------------------------------------------------------------
 # Read every agent first: a chip's label depends on the others
 # ---------------------------------------------------------------------------
-keys=() states=() labels=() insts=()
+keys=() states=() labels=() insts=() sessions=()
 for f in "${entries[@]}"; do
-    IFS=$'\t' read -r _ e_state e_inst e_where < "$f" || continue
+    IFS=$'\t' read -r _ e_state e_inst e_where e_sess < "$f" || continue
     keys+=("${f##*/}")
     states+=("$e_state")
     labels+=("${e_where:-$e_inst}")
     insts+=("$e_inst")
+    sessions+=("${e_sess:-}")
 done
 
 n=${#keys[@]}
 
-# Several panes legitimately share a window name -- three windows called
-# "dotfiles" is normal. Identical chips would be unreadable, so a colliding
-# name earns the instance that distinguishes it, and only then.
-for (( i = 0; i < n; i++ )); do
-    dup=0
+# Several panes legitimately share a window name -- a "dotfiles" window in each
+# of two sessions is normal. Identical chips would be unreadable, so a colliding
+# name earns a qualifier, and only then: the tmux session first, since that is
+# how the windows are actually told apart, and the agent instance only if even
+# the session does not separate them (two agents in one window).
+# Each pass compares against a snapshot taken before it, never against the array
+# it is editing: qualifying one label in place would otherwise hide the clash
+# from the very entries still to be visited, and the last of three identical
+# names would be left bare.
+snap=()
+dup_at() {
+    local i="$1" j
     for (( j = 0; j < n; j++ )); do
-        [ "$i" -ne "$j" ] && [ "${labels[$i]}" = "${labels[$j]}" ] && { dup=1; break; }
+        [ "$j" -ne "$i" ] && [ "${snap[$j]}" = "${snap[$i]}" ] && return 0
     done
-    [ "$dup" -eq 1 ] && labels[$i]="${labels[$i]}·${insts[$i]#claude-}"
+    return 1
+}
+
+snap=("${labels[@]}")
+for (( i = 0; i < n; i++ )); do
+    dup_at "$i" || continue
+    [ -n "${sessions[$i]}" ] && labels[$i]="${sessions[$i]}/${labels[$i]}"
+done
+
+snap=("${labels[@]}")
+for (( i = 0; i < n; i++ )); do
+    dup_at "$i" || continue
+    labels[$i]="${labels[$i]}·${insts[$i]#claude-}"
 done
 
 # ---------------------------------------------------------------------------

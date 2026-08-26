@@ -67,9 +67,12 @@ fi
 
 # Where is it? The tmux window name is the useful handle, but most windows are
 # left at their default shell name -- fall back to the project directory then.
-where=""
+# The session comes along too: several sessions run at once and a window name
+# like "dotfiles" is only unique within one of them.
+where="" session=""
 if [ -n "${TMUX_PANE:-}" ] && command -v tmux >/dev/null 2>&1; then
-    where="$(tmux display-message -p -t "$TMUX_PANE" '#W' 2>/dev/null)"
+    IFS='|' read -r session where < <(
+        tmux display-message -p -t "$TMUX_PANE" '#S|#W' 2>/dev/null)
 fi
 case "$where" in
     "" | zsh | bash | fish | sh | node | claude.exe | codex)
@@ -78,9 +81,10 @@ case "$where" in
 esac
 
 mkdir -p "$STATE_DIR" || exit 0
-# kind, state, instance, location -- tab separated, one line, no JSON parser
-# needed. Presentation is the bar's job, so keep the fields separate. The
-# instance is written in full: the bar shows the location, and falls back to
-# the instance only to tell apart two agents whose windows share a name.
-printf '%s\t%s\t%s\t%s\n' "$kind" "$state" "$instance" "$where" > "$state_file"
+# kind, state, instance, location, session -- tab separated, one line, no JSON
+# parser needed. Presentation is the bar's job, so keep the fields separate.
+# The instance is written in full: the bar shows the location, and reaches for
+# the session, then the instance, only to tell apart two agents whose windows
+# share a name.
+printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "$state" "$instance" "$where" "$session" > "$state_file"
 notify_bar

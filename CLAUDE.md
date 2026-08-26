@@ -80,8 +80,8 @@ Two things worth knowing before changing any item's appearance:
 you, and the sketchybar `agent_notify` item draws one chip per agent in the
 **centre** of the bar, labelled with that agent's tmux window name. State is one
 file per agent under `~/.cache/agent-notify`, keyed by tmux pane id; the file
-records kind, state, instance and location as separate tab-separated fields so
-the bar owns presentation.
+records kind, state, instance, location and tmux session as separate
+tab-separated fields so the bar owns presentation.
 
 Centre, not right: a blocked agent is an interrupt, and the middle of the screen
 is where the eye already is. The centre is otherwise empty, so the cluster costs
@@ -95,17 +95,34 @@ solid pill, finished is plain text. Red-vs-green is the pair that collapses
 under the common colour-vision deficiencies, and it is also the wrong emphasis,
 since only one of the two states is asking you for anything.
 
-**Clicking a chip goes to that agent** -- switches the tmux client to its
-session, selects its window and pane, and raises kitty. Dismissing was all the
+**Clicking a chip goes to that agent** -- `tmux switch-client -t <pane-id>`,
+which resolves a pane all the way down and so brings the session and window with
+it, then kitty is raised. Dismissing was all the
 old badge could do, which left you knowing that *something* wanted you and still
 hunting for it. Right-click clears a single chip; clicking the (invisible)
 anchor clears everything.
 
-Several panes legitimately share a window name -- three windows called
-`dotfiles` is normal -- so a colliding name earns the instance that
-distinguishes it (`dotfiles·worker-2`), and only then. The instance is recorded
-in full: it is no longer a bar label, so there is nothing to abbreviate for
-width.
+That switch deliberately passes **no `-c`**. A client is addressed by its tty
+path, and a *suspended* client keeps that path -- so with a Ctrl-Z'd attach
+lying around, `-c /dev/ttys000` picks whichever of the two tmux finds first,
+which is the suspended one. The session switch then lands on a client nobody is
+looking at, while `select-pane` still works, since it acts on the window rather
+than through a client. The symptom is precise and confusing: the pane moves and
+the session does not. Left to itself tmux uses the most recently used client,
+which is the one in front of you.
+
+Several panes legitimately share a window name -- a `dotfiles` window in each of
+two sessions is normal -- so a colliding name earns a qualifier, and only then:
+the tmux session first (`personal/dotfiles`), since that is how the windows are
+actually told apart, and the agent instance as well only if even the session
+does not separate them (`aos/dotfiles·worker-1`). The instance is recorded in
+full: it is no longer a bar label on its own, so there is nothing to abbreviate
+for width.
+
+Each disambiguation pass compares against a snapshot taken before it, never
+against the array it is editing -- qualifying a label in place hides the clash
+from the entries still to be visited, and the last of three identical names
+comes out bare.
 
 **The wiring lives outside this repo** and is not stowed, so a fresh machine
 needs it re-added by hand:
