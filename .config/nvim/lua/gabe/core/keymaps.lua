@@ -63,5 +63,7 @@ keymap.set("n", "<C-k>", ":TmuxNavigateUp<CR>")
 keymap.set("n", "<C-l>", ":TmuxNavigateRight<CR>")
 
 -- quickfix navigation
-keymap.set("n", "[q", ":cnext<CR>")
-keymap.set("n", "]q", ":cprev<CR>")
+-- ] goes forward and [ goes back, everywhere else in vim and in this
+-- file (]h/[h, ]d/[d, ]t/[t). These two were the wrong way round.
+keymap.set("n", "]q", ":cnext<CR>", { desc = "Next quickfix item" })
+keymap.set("n", "[q", ":cprev<CR>", { desc = "Previous quickfix item" })
