@@ -42,13 +42,45 @@ Lazy.nvim imports plugins from these subdirectories under `lua/gabe/plugins/`:
 |-------------|---------|
 | `(root)`    | General plugins (telescope, treesitter, nvim-tree, harpoon, bufferline, etc.) |
 | `lsp/`      | Mason + lspconfig |
-| `llm/`      | AI assistants (copilot) |
 | `mini/`     | mini.nvim modules (surround, pairs, comment, move, etc.) |
-| `note/`     | Obsidian, markdown-preview, render-markdown |
+| `note/`     | markdown-preview, render-markdown |
 | `debug/`    | DAP + dapui + python debug adapter |
 | `python/`   | venv-selector |
 
 Each plugin file returns a lazy.nvim plugin spec table. The leader key is `space`.
+
+Things worth knowing before changing anything here:
+
+- **A missing icon is usually the font, not the config.** nvim-web-devicons
+  ships raw Nerd Font codepoints, and a codepoint the installed font predates
+  renders as tofu with no error anywhere -- `get_icon()` cheerfully returns the
+  character. yaml/yml (`U+E8EB`) and css (`U+E6B8`) were added in Nerd Fonts
+  3.4, so a 3.3 font broke exactly those two out of ~1500. Diagnose by reading
+  the font's `cmap` rather than by staring at the bar: if the codepoint is
+  absent there, no amount of config will draw it. `brew upgrade --cask
+  font-meslo-lg-nerd-font`, then restart iTerm -- the running process holds its
+  own font cache. iTerm draws icons in the Normal Font only while "Use
+  Non-ASCII Font" is off; turning it on sends every glyph above ASCII to the
+  non-ASCII font (Monaco here), which has no Nerd glyphs at all.
+- **`gd` must be `definition`, not `declaration`.** `textDocument/declaration`
+  is implemented by almost no server (not pyright, ts_ls or lua_ls), so binding
+  it printed "method ... is not supported by any server" on every single press.
+- **conform warns for a configured-but-missing formatter, not a missing
+  entry.** `toml = { "taplo" }` with no taplo installed warned on every `.toml`
+  write -- which meant every edit to `.aerospace.toml`. Anything added to
+  `formatters_by_ft` has to be installed too.
+- **A language server's stderr is logged at ERROR regardless of content.** ruff
+  writes INFO lines there, so `lsp.log` grew to 40MB of successful startups.
+  Set the server's own log level; filtering afterwards is too late.
+- **ruff panics on a document whose URI has no parent** -- a nameless buffer set
+  to `filetype=python` -- and says so three times. The fix is to decline to
+  return a root directory from `root_dir`, which stops the server starting for
+  that buffer; detaching after the fact is too late, `didOpen` has already gone.
+- **`after = ...` is a packer key.** lazy.nvim ignores it silently, so two specs
+  had been expressing an ordering that never existed. Use `dependencies`.
+- Deprecated Neovim APIs are only reported when *called*, so `:checkhealth
+  vim.deprecated` reads clean while a keymap still points at one. To find them,
+  stub `vim.deprecate` and actually invoke the code paths.
 
 ## Sketchybar Architecture
 
