@@ -10,23 +10,39 @@ return {
 			end
 
 			-- Navigation
-			map("n", "]h", gs.next_hunk, "Next Hunk")
-			map("n", "[h", gs.prev_hunk, "Prev Hunk")
+			-- gs.next_hunk / gs.prev_hunk are deprecated in favour of the single
+			-- gs.nav_hunk(direction).
+			map("n", "]h", function()
+				gs.nav_hunk("next")
+			end, "Next Hunk")
+			map("n", "[h", function()
+				gs.nav_hunk("prev")
+			end, "Prev Hunk")
 
 			-- Actions
 			map("n", "<leader>hs", gs.stage_hunk, "Stage hunk")
 			map("n", "<leader>hr", gs.reset_hunk, "Reset hunk")
+			-- gitsigns wants an ascending range, and line(".") is only above
+			-- line("v") when the selection was dragged downwards.
+			local function visual_range()
+				local a, b = vim.fn.line("."), vim.fn.line("v")
+				return { math.min(a, b), math.max(a, b) }
+			end
+
 			map("v", "<leader>hs", function()
-				gs.stage_hunk({ vim.fn.line("."), vim.fn.line("v") })
+				gs.stage_hunk(visual_range())
 			end, "Stage hunk")
 			map("v", "<leader>hr", function()
-				gs.reset_hunk({ vim.fn.line("."), vim.fn.line("v") })
+				gs.reset_hunk(visual_range())
 			end, "Reset hunk")
 
 			map("n", "<leader>hS", gs.stage_buffer, "Stage buffer")
 			map("n", "<leader>hR", gs.reset_buffer, "Reset buffer")
 
-			map("n", "<leader>hu", gs.undo_stage_hunk, "Undo stage hunk")
+			-- gs.undo_stage_hunk is deprecated: gs.stage_hunk now unstages when
+			-- it is called on an already-staged hunk. Keeping the key so the
+			-- habit still works.
+			map("n", "<leader>hu", gs.stage_hunk, "Unstage hunk (toggle)")
 
 			map("n", "<leader>hp", gs.preview_hunk, "Preview hunk")
 

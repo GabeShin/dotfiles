@@ -1,6 +1,6 @@
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 
-if not vim.loop.fs_stat(lazypath) then
+if not vim.uv.fs_stat(lazypath) then
 	vim.fn.system({
 		"git",
 		"clone",
@@ -21,6 +21,9 @@ require("lazy").setup({
 	{ import = "gabe.plugins.debug" },
 	{ import = "gabe.plugins.python" },
 }, {
+	-- No plugin here needs luarocks, and leaving it enabled makes
+	-- `:checkhealth lazy` report a hererocks install it will never use.
+	rocks = { enabled = false },
 	checker = {
 		enabled = true,
 		notify = false,

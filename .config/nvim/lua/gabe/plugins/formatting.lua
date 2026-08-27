@@ -24,7 +24,9 @@ return {
 				toml = { "taplo" },
 			},
 			format_on_save = {
-				lsp_fallback = true,
+				-- `lsp_fallback` is deprecated in conform; `lsp_format` took
+				-- over and takes a string rather than a boolean.
+				lsp_format = "fallback",
 				async = false,
 				timeout_ms = 5000,
 			},
