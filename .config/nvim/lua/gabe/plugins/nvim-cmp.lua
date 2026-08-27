@@ -45,6 +45,9 @@ return {
 			}),
 			-- sources for autocompletion
 			sources = cmp.config.sources({
+				-- lazydev has to outrank nvim_lsp (group_index 0) or lua_ls
+				-- answers first and you lose the `vim.*` completions it adds.
+				{ name = "lazydev", group_index = 0 },
 				{ name = "nvim_lsp", max_item_count = 5 },
 				{ name = "luasnip" }, -- snippets
 				{ name = "buffer", keyword_length = 10 }, -- text within current buffer
