@@ -10,7 +10,10 @@ return {
 			javascriptreact = { "eslint_d" },
 			typescriptreact = { "eslint_d" },
 			svelte = { "eslint_d" },
-			python = { "flake8", "pylint" },
+			-- No python entry: pyright already reports types and the ruff
+			-- language server already reports lints, faster and over much the
+			-- same rule set. flake8 and pylint on top of those meant four
+			-- sources competing to report one problem.
 		}
 
 		local lint_augroup = vim.api.nvim_create_augroup("lint", { clear = true })
