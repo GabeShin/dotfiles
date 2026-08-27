@@ -97,7 +97,7 @@ since only one of the two states is asking you for anything.
 
 **Clicking a chip goes to that agent** -- `tmux switch-client -t <pane-id>`,
 which resolves a pane all the way down and so brings the session and window with
-it, then kitty is raised. Dismissing was all the
+it, then iTerm is raised. Dismissing was all the
 old badge could do, which left you knowing that *something* wanted you and still
 hunting for it. Right-click clears a single chip; clicking the (invisible)
 anchor clears everything.
@@ -139,8 +139,11 @@ needs it re-added by hand:
 Chips never time out. A Claude chip clears when you send that session its next
 prompt (`UserPromptSubmit`) or quit it (`SessionEnd`). Codex has no "user
 replied" event, so codex chips clear once you are visibly looking at their pane
--- kitty frontmost and the pane active in an attached client, re-checked every
-`update_freq=5` seconds.
+-- iTerm frontmost and the pane active in an attached client, re-checked every
+`update_freq=5` seconds. The terminal is matched by the **display name
+sketchybar reports** (`iTerm2`), not its bundle id: get it wrong and the check
+never fires, and since it is the only thing that retires a codex chip, the chip
+stays up forever.
 
 What is currently drawn is read back from sketchybar rather than remembered in a
 file: `--reload` wipes every item, so a note on disk would go on claiming the
@@ -294,7 +297,7 @@ machine needs it re-added by hand — a `statusLine` block in each of
 
 ## AeroSpace Workspace Assignments
 
-Workspaces 1-9 are mapped to specific apps (kitty, Arc, Slack, Notion, ChatGPT, Obsidian, Postman, Docker, DBeaver). Uses `alt` as the primary modifier.
+Workspaces 1-9 are mapped to specific apps (iTerm, Arc, Slack, Notion, ChatGPT, Obsidian, Postman, Docker, DBeaver). Uses `alt` as the primary modifier.
 
 ## Theme
 

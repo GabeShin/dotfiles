@@ -54,7 +54,7 @@ if [ "${1:-}" = focus ]; then
             tmux switch-client -t "$pane" 2>/dev/null
             tmux select-window -t "$pane" 2>/dev/null
             tmux select-pane   -t "$pane" 2>/dev/null
-            open -a kitty 2>/dev/null
+            open -b com.googlecode.iterm2 2>/dev/null
         fi
     fi
 
@@ -73,10 +73,15 @@ entries=("$STATE_DIR"/*)
 
 # Codex has no "user replied" event to clear on (its `notify` only fires when a
 # turn ends), so retire codex entries once you are demonstrably looking at the
-# pane: kitty frontmost and that pane visible in an attached client.
+# pane: the terminal frontmost and that pane visible in an attached client.
+#
+# The name here is the one sketchybar reports, which is the app's display name
+# (`iTerm2`), not its bundle id and not the binary. Get it wrong and the check
+# simply never fires -- a codex chip then stays up forever, because this is the
+# only thing that retires one.
 if [ ${#entries[@]} -gt 0 ]; then
     front="$(sketchybar --query front_app 2>/dev/null | jq -r '.label.value // empty')"
-    if [ "$front" = "kitty" ]; then
+    if [ "$front" = "iTerm2" ]; then
         # Space-delimited on both sides, so pane %7 cannot match pane %77.
         visible=" "
         for session in $(tmux list-clients -F '#{client_session}' 2>/dev/null | sort -u); do
