@@ -125,15 +125,23 @@ As of 2026-09-03, honestly:
 
 - **The board, fields, statuses, and `board.sh` exist and work.**
 - **The skill is synced into `iam` (portfolio-website); `jaksam` and
-  `agent-rotom` are still pending.** One open ticket per repo covers it, along
-  with the per-repo `project-add.yml` workflow that puts new issues on the board
-  automatically. `iam`'s workflow is committed but inert until its
-  `PROJECT_TOKEN` secret exists.
+  `agent-rotom` are still pending.** One open ticket per repo covers it.
 
-  A note for whoever mints that token: `project` scope alone is not enough for a
-  **private** repo. `board.sh` resolves an issue to its node id with
-  `gh issue view`, so the token also needs `repo` (classic) or Issues: read
-  (fine-grained), or it fails before it ever reaches the board.
+- **Issues reach the board by hand, not from CI.** The per-repo
+  `project-add.yml` workflow was built for `iam` and then removed. The default
+  `GITHUB_TOKEN` cannot write a user-owned Project, so auto-adding needs a PAT;
+  and because these repos are private, that PAT needs `repo` as well as
+  `project` — `board.sh` resolves an issue to its node id with `gh issue view`
+  before it touches the board, so a project-only token fails with "Could not
+  resolve to an Issue" and never even reaches the documented 403. A broad,
+  long-lived credential parked in CI to save one `board.sh add` is a bad trade.
+  Gabe's position: run it from a workstation where `gh` is already
+  authenticated. Don't re-propose the workflow for `jaksam` or `agent-rotom`.
+
+  This means **an issue filed on the web or from a phone is not on the board
+  until someone adds it.** `board.sh next` only sees what was added, so a
+  filed-but-unadded issue is invisible. Worth a sweep when picking up work:
+  compare `gh issue list` against the board.
 - **Nothing on the Hermes side is built.** No monitoring jobs, no fingerprinting,
   no Slack wiring, no verification. The design above is agreed; the
   implementation is not written.
