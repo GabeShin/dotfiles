@@ -58,15 +58,21 @@ three land in the same list, with `Source` recording which.
 5. Claim it: `In Progress`, before the first edit.
 6. Implement, verify, commit. `Fixes #N` closes the issue on merge — but a
    closed issue is not a finished ticket here, because merged is not live.
-7. Get it live, confirm that it is, and set `Deployed` with a `verify` block
-   naming the signal, the window, and what counts. If nothing is monitorable,
-   set `Deployed` anyway and omit the block. Then stop.
+7. Get it live and confirm that it is. Then ask whether there is a signal worth
+   watching. If there is, set `Deployed` with a `verify` block naming the
+   signal, the window, and what counts, and stop. If there isn't — most tickets
+   — set `Done`, saying in the comment why nothing was monitorable.
 
 **Hermes closes the loop**
 
 8. It picks up `Deployed` items, registers a monitor from the `verify` block,
-   and moves them to `In Monitor`. No block means nothing to watch: straight to
-   `Done`.
+   and moves them to `In Monitor`. A `Deployed` item with **no** block is no
+   longer the signal to close out — an agent with nothing to monitor now sets
+   `Done` itself — so Hermes should treat a missing block as unintended, close
+   the item out, and say that it had to guess. The exception is a release
+   somebody else performed: the block will be in an earlier `In Progress`
+   comment, not the `Deployed` one, so read the whole thread before concluding
+   there is no contract.
 9. After a clean window → `Done`. A recurrence → back to `Todo`, reopened, with
    a Slack alert. Cannot tell → says so, and does **not** claim verified.
 
@@ -76,16 +82,24 @@ six months, the ticket answers what was already tried.
 
 ## Who may do what
 
-|        | Files | Sets `Todo`-`Deployed` | Sets `In Monitor`/`Done` | Closes         | Reopens |
-| ------ | ----- | ---------------------- | ------------------------ | -------------- | ------- |
-| Gabe   | yes   | yes                    | yes                      | yes            | yes     |
-| You    | yes   | yes                    | **no**                   | via `Fixes #N` | no      |
-| Hermes | yes   | `Todo` only            | yes                      | **never**      | yes     |
+|        | Files | Sets `Todo`-`Deployed` | Sets `In Monitor` | Sets `Done`         | Closes         | Reopens |
+| ------ | ----- | ---------------------- | ----------------- | ------------------- | -------------- | ------- |
+| Gabe   | yes   | yes                    | yes               | yes                 | yes            | yes     |
+| You    | yes   | yes                    | **no**            | when nothing to monitor | via `Fixes #N` | no      |
+| Hermes | yes   | `Todo` only            | yes               | yes                 | **never**      | yes     |
 
 Hermes never closes: a bug in a monitoring job must not be able to hide real
-work. Reopening is safe because it only ever surfaces something. You never set
-`In Monitor` or `Done` because both assert facts you cannot know — that a
-monitor exists, and that a window passed clean. `board.sh` enforces that.
+work. Reopening is safe because it only ever surfaces something.
+
+You never set `In Monitor`, because it asserts a monitor is running and you have
+no way to know that; `board.sh` enforces it. `Done` is different, and used to be
+guarded alongside it on the reasoning that it asserts a clean window passed.
+That was wrong in one direction: `Done` also covers "there was never anything to
+watch", which is the majority of tickets, and the agent at ship time is the
+actor best placed to judge it — it is the one holding the diagnosis. Guarding it
+meant finished work with no monitorable signal accumulated in `Deployed`
+indefinitely, waiting on a transition nobody was coming to make. So `Done` reads
+as **nothing is left to verify**, from either route.
 
 ## The invariants worth not breaking
 
@@ -97,7 +111,11 @@ monitor exists, and that a window passed clean. `board.sh` enforces that.
   board it would be wrong.
 - **`In Monitor` asserts a monitor exists.** That's why it is separate from
   `Deployed`. If Hermes is down, work visibly piles up in `Deployed` instead of
-  sitting in a column that implies a watch nobody is performing.
+  sitting in a column that implies a watch nobody is performing. This is also
+  why `Deployed` must stay reserved for things that genuinely have a signal:
+  once no-monitor work goes straight to `Done`, the depth of the `Deployed`
+  column becomes a real measure of unwatched risk. Parking a doc change there
+  dilutes exactly the signal the column exists to give.
 - **Dedup on fingerprints, never on prose.** Lexical search over descriptions
   will file the same bug twice under two phrasings. An exact-match token won't.
 - **Declined means never again.** Without that, closing a false positive just
@@ -121,7 +139,7 @@ sets `Deployed` when he ships. Do not guess.
 
 ## What is not built yet
 
-As of 2026-09-03, honestly:
+As of 2026-09-04, honestly:
 
 - **The board, fields, statuses, and `board.sh` exist and work.**
 - **The skill is synced into `iam` (portfolio-website); `jaksam` and
@@ -146,9 +164,18 @@ As of 2026-09-03, honestly:
   no Slack wiring, no verification. The design above is agreed; the
   implementation is not written.
 
-So today, in practice: **`Deployed` is the end of the line.** Nothing moves items
-out of it, and they will accumulate there. That is the honest state of the system
-rather than a defect — it reads as "these shipped, nobody has verified them."
-Gabe sweeps it by hand with `BOARD_ALLOW_DOWNSTREAM=1` until Hermes exists.
+So today, in practice: **`Deployed` is a queue for a consumer that does not
+exist yet.** Anything that lands there stays there. That is the honest state of
+the system rather than a defect — the column reads as "these shipped, nobody has
+verified them", which is exactly true.
+
+This is the reason an agent may now set `Done` itself. When the guard covered
+both statuses, a ticket with nothing to monitor was indistinguishable on the
+board from one waiting on a monitor, and both sat in `Deployed` forever. Sending
+the first kind straight to `Done` keeps `Deployed` meaning something.
+
+Whatever does accumulate there is Gabe's to sweep, and that sweep no longer
+needs `BOARD_ALLOW_DOWNSTREAM=1` — `Deployed → Done` is an ordinary `board.sh
+set` now. The override's only remaining user is Hermes, for `In Monitor`.
 
 Don't write code that assumes Hermes is watching.

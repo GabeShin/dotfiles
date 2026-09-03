@@ -38,29 +38,63 @@ of it, and what isn't built yet — read `references/system-overview.md`.
 | `Todo`        | Filed and agreed. Not started.     | Gabe or Hermes, at filing                        |
 | `In Progress` | Being worked right now.            | **you**                                          |
 | `Deployed`    | **Live.** Awaiting a monitor.      | **you** — or Gabe, when the ship is out of reach |
-| `In Monitor`  | Hermes has a monitor running.      | Hermes only                                      |
-| `Done`        | Verified, or needed no monitoring. | Hermes only                                      |
+| `In Monitor`  | Hermes has a monitor running.      | Hermes — or Gabe                                 |
+| `Done`        | Nothing left to verify.            | **you**, when nothing needs monitoring; Hermes after a clean window |
 | `Blocked`     | Waiting on something else.         | you, or Gabe                                     |
 
-**Your lane is `Todo → In Progress → Deployed`, and that is the whole of it.**
-`board.sh` refuses `In Monitor` and `Done` unless `BOARD_ALLOW_DOWNSTREAM=1`,
-which is Hermes's business. `Blocked` is off-flow and always yours to set.
+**You claim at `In Progress`, and you finish at exactly one of `Deployed` or
+`Done` — never both, and never one via the other.** Which one is decided by a
+single question, asked once, after you have confirmed the change is live:
+*is a monitor going to watch this?*
+
+- **Yes** — set `Deployed`, with a verify block. Stop there. `In Monitor` is not
+  yours to set, because it asserts a monitor is actually running and you have no
+  way to know that; `board.sh` refuses it unless `BOARD_ALLOW_DOWNSTREAM=1`.
+- **No** — and today this is most tickets — set `Done` directly, and say in the
+  comment what made it unmonitorable. Don't route it through `Deployed` first:
+  that column is a queue for a monitor, and adding to it work no monitor will
+  ever read is how it stopped meaning anything.
+
+Note the question is *"will a monitor watch this"*, not *"could anything about
+this be observed"*. Almost any change is observable in principle. The one that
+belongs in `Deployed` is the one with a signal something is actually going to
+look at.
+
+`Done` means **nothing is left to verify** — not "verified". Those collapse into
+one status because the board only has to answer "does this still need someone's
+attention?", and both answers are no. The cost is that the status alone no
+longer tells you whether a fix was *checked*; the verify block on the ticket is
+what tells you that. What `Done` must never mean is "I assume that worked": if a
+monitor is going to watch it, the close-out is Hermes's call, not yours.
+
+`Blocked` is off-flow and always yours to set.
 
 ## The rules that aren't obvious from the table
 
 - **Claim before the first edit**, not after. An unclaimed ticket gets picked up
   twice — by you on another machine, or by another agent.
-- **Only set `Deployed` having actually confirmed it** — a checked deployment
-  status, a hit on the live URL, a published release. Never because a merge
-  usually deploys: `Deployed` is Hermes's cue to start watching, and a monitor
-  pointed at code that isn't running manufactures a false regression, which is
-  worse than no monitoring at all.
+- **Only set `Deployed` or `Done` having actually confirmed it is live** — a
+  checked deployment status, a hit on the live URL, a published release. Never
+  because a merge usually deploys. Both statuses claim the change is running:
+  `Deployed` is Hermes's cue to start watching, and a monitor pointed at code
+  that isn't there manufactures a false regression, which is worse than no
+  monitoring at all; `Done` on something that never shipped is simply a lie the
+  board will not correct later.
 - **If the ship is out of your reach** — merged but releasing later, as with an
   app-store build — leave it `In Progress` with a comment saying so, and let
-  whoever ships it set `Deployed`.
-- **Nothing to watch? Still stop at `Deployed`** and just omit the verify block.
-  Hermes reads that absence as "close it out". A status only you believe is as
-  bad as an invented check.
+  whoever ships it set `Deployed`. Write the verify block into that comment
+  anyway, if the fix has a signal. You are the one holding the diagnosis and you
+  will be gone by release day; whoever sets `Deployed` weeks later cannot write
+  the block for you, and a `Deployed` item without one looks like an oversight.
+- **Nothing to watch? Set `Done` and say why.** A refactor, a doc change, a
+  layout fix, a dependency bump — most work has no runtime signal that would
+  distinguish a working fix from a broken one. Closing it out is honest, and the
+  comment is what makes it auditable: "nothing to monitor — this is a build-time
+  assertion, and `npm run verify` covers it" is a reviewable claim. Silence is
+  not.
+- **When in doubt, `Deployed` with a block.** The cost of a monitor nobody runs
+  yet is a ticket sitting in a column. The cost of a premature `Done` is a
+  regression nobody is looking for.
 - **Blocked means say so.** Set `Blocked` and comment with what you're waiting
   on. A stale `In Progress` with no comment is the one outcome that makes the
   whole board untrustworthy.
@@ -68,7 +102,8 @@ which is Hermes's business. `Blocked` is off-flow and always yours to set.
 ## The verification comment
 
 When setting `Deployed`, comment on the issue with prose for Gabe and a
-`verify` block for Hermes. Omit the block when there is no monitorable signal.
+`verify` block for Hermes. If there is no monitorable signal there is no block
+to write — set `Done` instead, with prose saying what made it unmonitorable.
 
 ````
 Merged in abc1234. Root cause was the unawaited promise in `sync()`.
@@ -106,6 +141,7 @@ instead of taking its existence on trust.
 scripts/board.sh next                      # open Todo items, most urgent first
 scripts/board.sh get   <issue-url>         # this item's field values
 scripts/board.sh set   <issue-url> Status "In Progress"
+scripts/board.sh set   <issue-url> Status Done      # nothing to monitor
 scripts/board.sh set   <issue-url> Occurrences 3
 scripts/board.sh clear <issue-url> Occurrences
 scripts/board.sh add   <issue-url>         # put an issue on the board (idempotent)

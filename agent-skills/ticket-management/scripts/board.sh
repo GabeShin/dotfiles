@@ -68,18 +68,32 @@ board_add() {
 board_set() {
   local url="$1" field="$2" value="$3" item
 
-  # A coding agent's lane is Todo -> In Progress -> Deployed. Everything past
-  # Deployed belongs to Hermes, which asserts things an agent cannot know: that
-  # a monitor exists, and that a clean window has passed. Prose in SKILL.md says
-  # so; this is the part that holds when the prose is skimmed.
+  # 'In Monitor' asserts a fact an agent cannot know -- that a monitor is
+  # actually running. That one stays Hermes's alone. Prose in SKILL.md says so;
+  # this is the part that holds when the prose is skimmed.
+  #
+  # 'Done' is deliberately NOT guarded. It means "no verification is pending",
+  # which is true in two ways: Hermes watched a clean window, or there was never
+  # anything to watch. The second case is most tickets, and guarding it parked
+  # that work in 'Deployed' forever, waiting on a transition from a monitoring
+  # agent that does not exist yet. The tradeoff is real and recorded in
+  # docs/decisions/2026-09-04-agents-close-unmonitored-tickets.md in the iam
+  # repo: nothing here can tell a considered 'nothing to monitor' from an agent
+  # closing its own ticket early.
   if [ "$field" = "Status" ] && [ "${BOARD_ALLOW_DOWNSTREAM:-0}" != "1" ]; then
     case "$value" in
-      "In Monitor"|"Done")
-        echo "board_set: refusing to set Status='$value' -- that is Hermes's transition." >&2
-        echo "  A coding agent stops at 'Deployed' and omits the verify block if" >&2
-        echo "  nothing needs watching. Set BOARD_ALLOW_DOWNSTREAM=1 only if you" >&2
-        echo "  are Hermes or are deliberately sweeping the board by hand." >&2
+      "In Monitor")
+        echo "board_set: refusing to set Status='In Monitor' -- that is Hermes's transition." >&2
+        echo "  It asserts a monitor is running, which you cannot know. Set" >&2
+        echo "  'Deployed' with a verify block and let Hermes pick it up, or set" >&2
+        echo "  'Done' if there is nothing to monitor. BOARD_ALLOW_DOWNSTREAM=1" >&2
+        echo "  overrides this only if you are Hermes." >&2
         return 1 ;;
+      "Done")
+        echo "board_set: Status='Done' -- assuming nothing needs monitoring." >&2
+        echo "  If this fix does have a monitorable signal, set 'Deployed' with a" >&2
+        echo "  verify block instead and leave the close-out to Hermes." >&2
+        ;;
     esac
   fi
 

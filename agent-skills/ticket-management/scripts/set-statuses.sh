@@ -57,9 +57,9 @@ print('    '+' -> '.join(o['name'] for o in json.load(sys.stdin)['data']['update
 
 echo "==> restoring"
 # Re-applying a snapshot legitimately covers every status, including the
-# downstream ones board_set guards. Without this the restore would silently
-# skip anything that had been In Monitor or Done and report it as a missing
-# option.
+# downstream ones board_set guards. Only In Monitor is guarded now, but without
+# this the restore would refuse anything that had been In Monitor and report it
+# as a missing option.
 export BOARD_ALLOW_DOWNSTREAM=1
 # shellcheck source=board.sh
 source "$HERE/board.sh"
