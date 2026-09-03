@@ -124,9 +124,16 @@ sets `Deployed` when he ships. Do not guess.
 As of 2026-09-03, honestly:
 
 - **The board, fields, statuses, and `board.sh` exist and work.**
-- **The skill is not synced into any repo yet.** Three open tickets cover that,
-  one per repo, along with the per-repo `project-add.yml` workflow that puts new
-  issues on the board automatically.
+- **The skill is synced into `iam` (portfolio-website); `jaksam` and
+  `agent-rotom` are still pending.** One open ticket per repo covers it, along
+  with the per-repo `project-add.yml` workflow that puts new issues on the board
+  automatically. `iam`'s workflow is committed but inert until its
+  `PROJECT_TOKEN` secret exists.
+
+  A note for whoever mints that token: `project` scope alone is not enough for a
+  **private** repo. `board.sh` resolves an issue to its node id with
+  `gh issue view`, so the token also needs `repo` (classic) or Issues: read
+  (fine-grained), or it fails before it ever reaches the board.
 - **Nothing on the Hermes side is built.** No monitoring jobs, no fingerprinting,
   no Slack wiring, no verification. The design above is agreed; the
   implementation is not written.
