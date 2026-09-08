@@ -17,6 +17,7 @@ set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/agent-skills"
 CHECK=0
+DRIFT=0
 [ "${1:-}" = "--check" ] && { CHECK=1; shift; }
 
 [ $# -eq 0 ] && { echo "usage: $(basename "$0") [--check] <repo-path>..." >&2; exit 2; }
@@ -33,11 +34,17 @@ for repo in "$@"; do
     if [ "$CHECK" = 1 ]; then
       if [ ! -d "$dest" ]; then
         echo "    $name: ABSENT"
+        DRIFT=1
       elif diff -rq "$skill" "$dest" >/dev/null 2>&1; then
         echo "    $name: in sync"
       else
         echo "    $name: DRIFTED"
-        diff -rq "$skill" "$dest" 2>&1 | sed 's/^/        /'
+        # `|| true`: diff exits 1 when files differ, and under `set -o pipefail`
+        # that non-zero propagates through the pipe and set -e kills the loop --
+        # so checking two repos only ever reported the first one to drift. A
+        # drift reporter that stops at the first drift is worse than none.
+        { diff -rq "$skill" "$dest" 2>&1 || true; } | sed 's/^/        /'
+        DRIFT=1
       fi
     else
       mkdir -p "$(dirname "$dest")"
@@ -49,7 +56,12 @@ for repo in "$@"; do
   done
 done
 
-[ "$CHECK" = 1 ] || cat <<'EOF'
+if [ "$CHECK" = 1 ]; then
+  # Non-zero means "drift found", after reporting every repo -- not "gave up".
+  exit "$DRIFT"
+fi
+
+cat <<'EOF'
 
 Copies are written but not committed -- review and commit them in each repo.
 EOF
