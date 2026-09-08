@@ -10,33 +10,54 @@
 # status name no longer exists is reported rather than silently left blank.
 set -euo pipefail
 
-OWNER="${BOARD_OWNER:-GabeShin}"
-NUMBER="${BOARD_NUMBER:-2}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=board.sh
+source "$HERE/board.sh"
+
+# Archived items hold field values too, and this mutation would wipe them just
+# the same, so the snapshot has to see them.
+ALL_STATES='[ARCHIVED, NOT_ARCHIVED]'
 
 [ $# -eq 0 ] && { echo "usage: $(basename "$0") 'Name:COLOR:description'..." >&2; exit 2; }
 
-FIELD_ID="$(gh api graphql -f owner="$OWNER" -F number="$NUMBER" -f query='
+FIELD_ID="$(gh api graphql -f owner="$BOARD_OWNER" -F number="$BOARD_NUMBER" -f query='
   query($owner:String!,$number:Int!){ user(login:$owner){ projectV2(number:$number){
     field(name:"Status"){ ... on ProjectV2SingleSelectField { id } } } } }' \
   --jq '.data.user.projectV2.field.id')"
 
 echo "==> snapshot"
-SNAP="$(gh api graphql -f owner="$OWNER" -F number="$NUMBER" -f query='
-  query($owner:String!,$number:Int!){ user(login:$owner){ projectV2(number:$number){
-    items(first:100){ nodes{
-      content{ ... on Issue { url } }
+# Paged, and then checked against totalCount. A partial snapshot is not a
+# degraded result here, it is silent data loss: every item it failed to see
+# loses its Status the moment the mutation below runs. So refuse to proceed
+# unless the read demonstrably covered the whole board.
+RAW="$(_board_items '
+      content{ ... on Issue { url } ... on PullRequest { url } }
       fieldValues(first:30){ nodes{ ... on ProjectV2ItemFieldSingleSelectValue {
-        name field{ ... on ProjectV2FieldCommon{name} } } } } } } } } }' \
-| python3 -c "
+        name field{ ... on ProjectV2FieldCommon{name} } } } }' '' "$ALL_STATES")"
+
+PAGED="$(printf '%s\n' "$RAW" | grep -c . || true)"
+TOTAL="$(_board_item_total "$ALL_STATES")"
+if [ "$PAGED" -ne "$TOTAL" ]; then
+  echo "set-statuses: read $PAGED of $TOTAL items -- refusing to touch the field." >&2
+  echo "  Applying the option set now would blank the Status of everything the" >&2
+  echo "  snapshot missed. Re-run; if it persists, the paging is broken." >&2
+  exit 1
+fi
+echo "    read $PAGED/$TOTAL items"
+
+SNAP="$(printf '%s\n' "$RAW" | python3 -c '
 import sys,json
-for n in json.load(sys.stdin)['data']['user']['projectV2']['items']['nodes']:
-    c=n.get('content') or {}
-    if not c.get('url'): continue
-    fv={v['field']['name']:v['name'] for v in n['fieldValues']['nodes'] if v and 'field' in v}
-    if fv.get('Status'): print(c['url'], fv['Status'], sep='\t')
-")"
-printf '%s' "$SNAP" | sed 's/^/    /'
+for line in sys.stdin:
+    line=line.strip()
+    if not line: continue
+    n=json.loads(line)
+    c=n.get("content") or {}
+    if not c.get("url"): continue
+    fv={v["field"]["name"]:v["name"] for v in n["fieldValues"]["nodes"] if v and "field" in v}
+    if fv.get("Status"): print(c["url"], fv["Status"], sep="\t")
+')"
+printf '%s\n' "$SNAP" | sed 's/^/    /'
+echo "    $(printf '%s\n' "$SNAP" | grep -c . || true) item(s) carry a Status"
 
 echo "==> applying $# options"
 OPTS="$(python3 - "$@" <<'PY'
@@ -61,8 +82,6 @@ echo "==> restoring"
 # this the restore would refuse anything that had been In Monitor and report it
 # as a missing option.
 export BOARD_ALLOW_DOWNSTREAM=1
-# shellcheck source=board.sh
-source "$HERE/board.sh"
 missing=0
 while IFS=$'\t' read -r url status; do
   [ -z "${url:-}" ] && continue

@@ -12,6 +12,10 @@ description: >
 The **Side Projects** board (https://github.com/users/GabeShin/projects/2) is the
 source of truth for work across `iam`, `jaksam` and `agent-rotom`.
 
+It has two views: **Active** (`-status:Done`) is the working board, and **Done**
+(`status:Done`) is the history. Finished work is filtered off Active, never
+deleted or archived — see the gotchas before reaching for archiving.
+
 Canonical copy lives in `~/dotfiles/agent-skills/ticket-management`. **Don't edit
 this file inside a repo** — edit dotfiles and re-run `sync-agent-skills.sh`.
 
@@ -154,7 +158,7 @@ Changing the Status options themselves goes through
 Field and option names are resolved at call time, so an unknown one is a loud
 error rather than a silent no-op.
 
-## Three gotchas
+## Gotchas
 
 **`Fixes #N` does not move the board — and here it shouldn't.** A merge does not
 even mean `Deployed`, let alone `Done`, so the built-in `Item closed → Done`
@@ -165,7 +169,17 @@ explicitly.
 `updateProjectV2Field` replaces the whole option set, and re-listing a name is
 not enough to keep it: the option is issued a new id, so items lose their value
 even for names that never changed. `set-statuses.sh` snapshots by name, applies,
-and restores.
+and restores — and refuses to touch the field unless its snapshot covered every
+item, because a short read there is silent data loss rather than a degraded
+result.
+
+**Don't enable `Auto-archive items`.** Its filter understands only `is:`,
+`reason:` and `updated:` — there is no `status:`, so "archive what's `Done`" is
+precisely what it cannot express. The nearest thing you can write,
+`is:closed updated:@today-2w`, is actively harmful here: most `Deployed` items
+are closed issues (`Fixes #N` closes on merge), so it would archive the queue
+Hermes reads, and archived items drop out of `items()` by default. `Done` is
+kept off the Active view by a view filter instead.
 
 **Board calls need the `project` scope** on the **`GabeShin`** account:
 `gh auth refresh -h github.com -s project`. If `gh auth status` shows

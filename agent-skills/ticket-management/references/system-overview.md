@@ -123,6 +123,16 @@ as **nothing is left to verify**, from either route.
 - **Unmeasurable is not verified.** A low-traffic side project may never
   exercise a path in 72 hours. "No occurrences" on a dead path proves nothing,
   and reporting it as a pass makes the monitor decorative.
+- **Nothing leaves the board on a timer.** `Done` accumulates, and that is
+  fine — it is the history that answers "what was already tried" when something
+  recurs. It is hidden by a view filter, not archived: GitHub's auto-archive
+  cannot filter on `Status`, and the closest filter it can express
+  (`is:closed`) would archive `Deployed` items, since a merge closes the issue
+  while the ticket still awaits a monitor. Archived items also fall out of
+  `items()` by default, so archiving is how a ticket becomes invisible to both
+  `board.sh` and a fingerprint search — which breaks "declined means never
+  again". If the 50,000-item project cap ever matters, that is the point to
+  revisit it, not the length of the list.
 
 ## The three repos differ in one way that matters
 

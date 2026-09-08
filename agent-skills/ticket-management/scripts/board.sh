@@ -33,20 +33,76 @@ board_project_id() {
   _board_meta | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["user"]["projectV2"]["id"])'
 }
 
-# board_item_id <issue-url> -> the project item id, or empty if not on the board
-board_item_id() {
-  local url="$1" cid
-  cid="$(gh issue view "$url" --json id --jq .id)"
-  gh api graphql -f owner="$BOARD_OWNER" -F number="$BOARD_NUMBER" -f query='
-    query($owner:String!,$number:Int!){
-      user(login:$owner){ projectV2(number:$number){
-        items(first:100){ nodes{ id content{ ... on Issue { id } } } } } } }' \
-    | python3 -c "
+# _board_items <node-selection> [search-query] -> one JSON object per line
+#
+# GitHub caps a page at 100 items, so anything that must see the whole board
+# has to follow the cursor. A bare items(first:100) does not fail when the
+# board outgrows it -- it silently returns a prefix, which is how a truncated
+# read turns into a wrong answer. Pass a search query to narrow server-side
+# (`status:Todo is:open`) rather than fetching everything and filtering here.
+_board_items() {
+  local nodesel="$1" q="${2:-}" states="${3:-}" cursor="" after resp out arch=""
+  # Default (NOT_ARCHIVED) is right for reads that mirror a view; pass
+  # '[ARCHIVED, NOT_ARCHIVED]' for reads that must be exhaustive, since an
+  # archived item still holds field values that a field rewrite would wipe.
+  [ -n "$states" ] && arch=", archivedStates: $states"
+  while :; do
+    after=""
+    [ -n "$cursor" ] && after=", after: \"$cursor\""
+    resp="$(gh api graphql -f owner="$BOARD_OWNER" -F number="$BOARD_NUMBER" -f query="
+      query(\$owner:String!,\$number:Int!){
+        user(login:\$owner){ projectV2(number:\$number){
+          items(first:100${after}${arch}, query: \"$q\"){
+            pageInfo{ hasNextPage endCursor }
+            nodes{ $nodesel } } } } }")"
+    # One pass emits the next cursor on line 1, then the nodes -- so a page
+    # costs a single parse rather than two.
+    out="$(printf '%s' "$resp" | python3 -c '
 import sys,json
-want='$cid'
-for n in json.load(sys.stdin)['data']['user']['projectV2']['items']['nodes']:
-    if (n.get('content') or {}).get('id')==want: print(n['id']); break
-"
+d=json.load(sys.stdin)["data"]["user"]["projectV2"]["items"]
+pi=d["pageInfo"]
+print(pi["endCursor"] if pi["hasNextPage"] else "")
+for n in d["nodes"]: print(json.dumps(n))
+')"
+    cursor="$(printf '%s\n' "$out" | sed -n 1p)"
+    printf '%s\n' "$out" | tail -n +2
+    [ -z "$cursor" ] && break
+  done
+}
+
+# _board_item_total -> how many items the board holds, archived included.
+# Used to prove an exhaustive read actually was exhaustive.
+_board_item_total() {
+  local states="${1:-}" arch=""
+  [ -n "$states" ] && arch=", archivedStates: $states"
+  gh api graphql -f owner="$BOARD_OWNER" -F number="$BOARD_NUMBER" -f query="
+    query(\$owner:String!,\$number:Int!){ user(login:\$owner){ projectV2(number:\$number){
+      items(first:1${arch}){ totalCount } } } }" \
+    --jq '.data.user.projectV2.items.totalCount'
+}
+
+# board_item_id <issue-url> -> the project item id, or empty if not on the board
+#
+# Asked of the *issue*, not by scanning the project: an issue belongs to a
+# handful of projects, while the project accumulates every ticket ever filed.
+# The scan this replaces read items(first:100) unpaged, so past 100 items the
+# lookup began missing -- and board_add reads a miss as "not on the board" and
+# adds a second item for the same issue. includeArchived is there for the same
+# reason: an archived ticket is still on the board, and re-adding it would
+# duplicate it.
+board_item_id() {
+  local url="$1" iid
+  iid="$(gh issue view "$url" --json id --jq .id)"
+  # PullRequest as well as Issue: `gh issue view` resolves a PR number too, and
+  # then `... on Issue` matches nothing, leaving projectItems absent. The `[]?`
+  # is what makes an absent or null path an empty result instead of a jq error
+  # -- board_add reads the empty string as "not on the board", and a hard error
+  # here would abort board_set through set -e.
+  gh api graphql -f id="$iid" -f query='
+    query($id:ID!){ node(id:$id){
+      ... on Issue       { projectItems(first:50, includeArchived:true){ nodes{ id project{ number } } } }
+      ... on PullRequest { projectItems(first:50, includeArchived:true){ nodes{ id project{ number } } } } } }' \
+    --jq "[.data.node.projectItems.nodes[]? | select(.project.number == $BOARD_NUMBER) | .id][0] // \"\""
 }
 
 # board_add <issue-url> -> item id (idempotent; returns the existing item if present)
@@ -172,28 +228,38 @@ for v in json.load(sys.stdin)['data']['node']['fieldValues']['nodes']:
 }
 
 # board_next -> open Todo items, most urgent first
+#
+# Narrowed server-side to Todo. The Status check below is kept as a second
+# line of defence: the search qualifiers are GitHub's, not ours, and a silent
+# change there should show up as a missing row rather than a wrong one.
 board_next() {
-  gh api graphql -f owner="$BOARD_OWNER" -F number="$BOARD_NUMBER" -f query='
-    query($owner:String!,$number:Int!){
-      user(login:$owner){ projectV2(number:$number){
-        items(first:100){ nodes{
+  _board_items '
           content{ ... on Issue { number title url state repository{name} } }
           fieldValues(first:30){ nodes{
-            ... on ProjectV2ItemFieldSingleSelectValue { name field{ ... on ProjectV2FieldCommon{name} } } } } } } } } }' \
-    | python3 -c "
+            ... on ProjectV2ItemFieldSingleSelectValue { name field{ ... on ProjectV2FieldCommon{name} } } } }' \
+      'status:Todo is:open' \
+    | python3 -c '
 import sys,json
-rank={'P0':0,'P1':1,'P2':2,None:3}
+rank={"P0":0,"P1":1,"P2":2,None:3}
 rows=[]
-for n in json.load(sys.stdin)['data']['user']['projectV2']['items']['nodes']:
-    c=n.get('content') or {}
-    if not c or c.get('state')!='OPEN': continue
-    fv={v['field']['name']:v['name'] for v in n['fieldValues']['nodes'] if v and 'field' in v}
-    if fv.get('Status') not in ('Todo',): continue
-    rows.append((rank.get(fv.get('Priority'),3), fv, c))
+for line in sys.stdin:
+    line=line.strip()
+    if not line: continue
+    n=json.loads(line)
+    c=n.get("content") or {}
+    if not c or c.get("state")!="OPEN": continue
+    fv={v["field"]["name"]:v["name"] for v in n["fieldValues"]["nodes"] if v and "field" in v}
+    if fv.get("Status")!="Todo": continue
+    rows.append((rank.get(fv.get("Priority"),3), fv, c))
 for _,fv,c in sorted(rows, key=lambda r: r[0]):
-    print(f\"  [{fv.get('Priority','--')}] {fv.get('Project','?'):<12} #{c['number']:<5} {c['title']}\")
-    print(f\"        {c['url']}  (Status={fv.get('Status')}, Source={fv.get('Source','?')})\")
-"
+    pri = fv.get("Priority") or "--"
+    proj = fv.get("Project") or "?"
+    src = fv.get("Source") or "?"
+    num, title, url = c["number"], c["title"], c["url"]
+    print(f"  [{pri}] {proj:<12} #{num:<5} {title}")
+    st = fv.get("Status")
+    print(f"        {url}  (Status={st}, Source={src})")
+'
 }
 
 # Allow use as a CLI as well as a sourced library: board.sh set <url> Status Done
