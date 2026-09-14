@@ -54,8 +54,8 @@ saying which of exactly two things this ticket is, then set `Deployed`.
 **It fixes a Sentry issue.** Name it:
 
 ```
-Sentry issue: sentry:<org>/<project>/<issue-id>
-https://<org>.sentry.io/issues/<issue-id>/
+Sentry issue: sentry:gabe-shin/jaksam-backup/<issue-id>
+https://gabe-shin.sentry.io/issues/<issue-id>/
 ```
 
 Hermes resolves that Sentry issue, moves the ticket to `In Monitor`, and Sentry's
@@ -64,6 +64,10 @@ alerts, and Hermes returns the ticket to `Todo`.
 
 **It doesn't** — a feature, feedback, a refactor, docs. Say so in one line:
 `No Sentry issue — feature work`. Hermes closes it out at cleanup.
+
+Only `jaksam` reports to Sentry today (`gabe-shin/jaksam-backup`). In a repo with
+no error reporting every ticket takes the second branch, which is expected rather
+than an oversight.
 
 That is the whole contract. Don't write a monitoring spec, and **don't create a
 Sentry alert for a ticket** — the regression alert already exists, and resolving

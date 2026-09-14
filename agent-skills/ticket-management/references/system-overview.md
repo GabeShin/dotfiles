@@ -115,6 +115,12 @@ For the first two you can confirm the deploy yourself. For `jaksam` you cannot �
 the release happens long after your session ends. Leave those `In Progress` with
 a comment, and Gabe sets `Deployed` when he ships. Don't guess.
 
+They differ in a second way that matters as much: **only `jaksam` reports to
+Sentry** (`gabe-shin/jaksam-backup`). `iam` has no error reporting at all — its
+#31 is open and `Blocked` — so every `iam` ticket takes the `No Sentry issue`
+branch and waits on Hermes's cleanup pass. That is the honest state, not a
+mistake to correct ticket by ticket.
+
 ## What is not built yet
 
 As of 2026-09-15:
