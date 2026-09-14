@@ -6,19 +6,17 @@
 
 ## Context
 
-What forced a choice. The constraint, the bug, or the requirement — enough that
-someone who wasn't here understands why doing nothing wasn't an option. Two or
-three sentences.
+What forced a choice — the constraint, the bug, the requirement. Enough that
+someone who wasn't here sees why doing nothing wasn't an option.
 
 ## Decision
 
-What was chosen, stated plainly and in the present tense: "Board Status is set
-explicitly rather than relying on the built-in workflow."
+What was chosen, in the present tense: "Board Status is set explicitly rather
+than relying on the built-in workflow."
 
 ## Why
 
-The reasoning that actually decided it. Not a list of everything true about the
-choice — the part that tipped it.
+The part that actually tipped it — not everything true about the choice.
 
 ## Alternatives rejected
 
@@ -26,11 +24,8 @@ choice — the part that tipped it.
 |---|---|
 | <the one someone will suggest next month> | <the reason it fails> |
 
-This table is the point of the record. A decision without its rejected
-alternatives gets re-litigated; with them, it gets read once and respected.
-
 ## Consequences
 
-What is now harder, what is now easier, and what has to be revisited if a
-stated assumption changes. Include the cost you accepted — a record that only
-lists upsides reads as advocacy and gets trusted less.
+What is now harder, what is easier, and what to revisit if a stated assumption
+changes. Include the cost you accepted — a record listing only upsides reads as
+advocacy.

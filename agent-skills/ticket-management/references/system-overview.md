@@ -1,140 +1,109 @@
 # The whole picture
 
-Read this when you need to know _why_ the board is shaped the way it is, or what
-happens to a ticket after you let go of it. `SKILL.md` is the contract; this is
-the context behind it.
+Why the board is shaped the way it is, and what happens to a ticket after you
+let go of it. `SKILL.md` is the contract; this is the reasoning behind it.
 
 ## Three actors
 
-**Hermes** is the eyes. A [Nous Research Hermes Agent](https://github.com/NousResearch/hermes-agent)
-instance running on Gabe's always-on machine, with monitoring jobs over the
-running software. It notices problems, files them, and — after a fix ships —
-checks whether the problem actually stopped. It is the only actor that can
-assert "this was verified", because it is the only one still watching after
-everyone else has moved on.
+**Hermes** is the eyes — a [Nous Research Hermes Agent](https://github.com/NousResearch/hermes-agent)
+on Gabe's always-on machine, running monitoring jobs over the live software. It
+notices problems, files them, and after a fix ships checks whether the problem
+stopped. It is the only actor that can assert "verified", because it is the only
+one still watching once everyone else has moved on.
 
-**Gabe** decides. What gets built, what matters, what gets shipped. He files
-tickets, sets priority, triages what Hermes finds, and performs the releases
-that Hermes and agents cannot.
+**Gabe** decides: what gets built, what matters, what ships. He files tickets,
+sets priority, triages what Hermes finds, and performs the releases the other two
+cannot.
 
-**You**, the coding agent, do the work. You take a ticket that has been agreed,
-implement it, get it live, and hand it on. You are the only actor with the
-diagnosis in context at the moment the fix ships — which is why writing the
-verification contract is your job, not Hermes's. Hermes knows how to watch; only
-you know what to watch for.
+**You** do the work — take an agreed ticket, implement it, get it live, hand it
+on. You are the only actor holding the diagnosis at the moment the fix ships,
+which is why naming the Sentry issue the fix resolves is yours to do. Hermes
+knows how to watch; only you know what this change was supposed to close.
 
 ## Why one board across three repos
 
-The board answers a question no single repo can: _of everything I could work on
-tonight, across every side project, what matters most?_ Per-repo boards can't
-compose into that, whereas one board filters down to a single repo trivially.
-Views compose downward, not upward.
+It answers a question no single repo can: _of everything I could work on
+tonight, what matters most?_ Views compose downward, not upward — one board
+filters to a single repo trivially, three boards don't compose into one list.
 
-It is also the meeting point for three writers. Gabe files from a phone, Hermes
-files from a monitor, an agent files something it noticed in passing — and all
-three land in the same list, with `Source` recording which.
+It is also where three writers meet: Gabe from a phone, Hermes from a monitor,
+an agent noting something in passing. `Source` records which.
 
 ## The lifecycle
 
-**Hermes finds something**
+1. **Hermes finds something.** The Sentry issue id _is_ the fingerprint — a
+   stable identity for the problem, not for the prose describing it — and it
+   searches the board for that marker. Open → bump `Occurrences` and `Last seen`,
+   stay quiet. **Declined** → nothing, ever. New → file at `Todo`,
+   `Source=hermes`, with the marker in the body.
+2. **It posts to Slack.** High priority immediately, the rest in a digest: a
+   channel that pings on every finding gets muted, and a muted channel breaks the
+   design at step one.
+3. **Gabe triages**, setting `Priority`. Anything you need to know goes on the
+   _issue_ — the ticket is the context surface, Slack is a view of it.
+4. **You claim it** at `In Progress`, implement, and get it live.
+5. **You finish** at `Deployed`, commenting either the `Sentry issue:` marker or
+   one line saying there isn't one.
+6. **Hermes reads that comment.** Marker → it resolves the Sentry issue and moves
+   the ticket to `In Monitor`. No marker → it closes the ticket out at cleanup,
+   `Deployed → Done`.
+7. **Sentry watches.** A resolved issue that recurs is a regression, and Sentry
+   already alerts on that — Hermes correlates the alert back to the ticket by its
+   marker and returns it to `Todo`, reopened.
 
-1. A monitoring job detects a problem and computes a **fingerprint** — a stable
-   identity for _this specific problem_, not for the prose describing it.
-2. It searches the board for that fingerprint. Found and open → bump
-   `Occurrences` and `Last seen`, stay quiet. Found and **declined** → do
-   nothing, ever. Not found → file a new ticket at `Todo`, `Source=hermes`.
-3. It posts to Slack. High priority alerts immediately; the rest arrive in a
-   digest, because a channel that pings on every finding gets muted, and a muted
-   channel breaks the whole design at step one.
-
-**Gabe picks it up**
-
-4. He reads Slack, decides it's worth doing, sets `Priority`. Anything he wants
-   you to know goes on the _issue_ — the ticket is the context surface, Slack is
-   a view of it.
-
-**You do the work**
-
-5. Claim it: `In Progress`, before the first edit.
-6. Implement, verify, commit. `Fixes #N` closes the issue on merge — but a
-   closed issue is not a finished ticket here, because merged is not live.
-7. Get it live and confirm that it is. Then ask whether there is a signal worth
-   watching. If there is, set `Deployed` with a `verify` block naming the
-   signal, the window, and what counts, and stop. If there isn't — most tickets
-   — set `Done`, saying in the comment why nothing was monitorable.
-
-**Hermes closes the loop**
-
-8. It picks up `Deployed` items, registers a monitor from the `verify` block,
-   and moves them to `In Monitor`. A `Deployed` item with **no** block is no
-   longer the signal to close out — an agent with nothing to monitor now sets
-   `Done` itself — so Hermes should treat a missing block as unintended, close
-   the item out, and say that it had to guess. The exception is a release
-   somebody else performed: the block will be in an earlier `In Progress`
-   comment, not the `Deployed` one, so read the whole thread before concluding
-   there is no contract.
-9. After a clean window → `Done`. A recurrence → back to `Todo`, reopened, with
-   a Slack alert. Cannot tell → says so, and does **not** claim verified.
-
-Step 9 is the payoff. A ticket ends up holding the diagnosis, the fix, what the
-fix was supposed to achieve, and whether it held — so when the thing recurs in
-six months, the ticket answers what was already tried.
+Step 7 is the payoff: the ticket ends up holding the diagnosis, the fix, the
+Sentry issue it was meant to close, and whether it stayed closed — so when the
+thing recurs in six months, it answers what was already tried.
 
 ## Who may do what
 
-|        | Files | Sets `Todo`-`Deployed` | Sets `In Monitor` | Sets `Done`         | Closes         | Reopens |
-| ------ | ----- | ---------------------- | ----------------- | ------------------- | -------------- | ------- |
-| Gabe   | yes   | yes                    | yes               | yes                 | yes            | yes     |
-| You    | yes   | yes                    | **no**            | when nothing to monitor | via `Fixes #N` | no      |
-| Hermes | yes   | `Todo` only            | yes               | yes                 | **never**      | yes     |
+|        | Files | `Todo`–`Deployed` | `In Monitor` | `Done` | Closes         | Reopens |
+| ------ | ----- | ----------------- | ------------ | ------ | -------------- | ------- |
+| Gabe   | yes   | yes               | yes          | yes    | yes            | yes     |
+| You    | yes   | to `Deployed`     | **no**       | **no** | via `Fixes #N` | no      |
+| Hermes | yes   | `Todo` only       | yes          | yes    | **never**      | yes     |
 
 Hermes never closes: a bug in a monitoring job must not be able to hide real
-work. Reopening is safe because it only ever surfaces something.
+work. Reopening is safe — it only ever surfaces something.
 
-You never set `In Monitor`, because it asserts a monitor is running and you have
-no way to know that; `board.sh` enforces it. `Done` is different, and used to be
-guarded alongside it on the reasoning that it asserts a clean window passed.
-That was wrong in one direction: `Done` also covers "there was never anything to
-watch", which is the majority of tickets, and the agent at ship time is the
-actor best placed to judge it — it is the one holding the diagnosis. Guarding it
-meant finished work with no monitorable signal accumulated in `Deployed`
-indefinitely, waiting on a transition nobody was coming to make. So `Done` reads
-as **nothing is left to verify**, from either route.
+You never set `In Monitor`: it asserts a Sentry issue has been resolved and is
+being watched, which is Hermes's action to take and yours only to enable, by
+naming the issue. `board.sh` enforces it. `Done` is Hermes's too — it means the
+ticket has been through cleanup or a clean window, and neither is something you
+can observe from inside the session that shipped the change.
 
-## The invariants worth not breaking
+## Invariants
 
-- **One source of truth.** The board holds state; the issue holds detail; Slack
-  is a view. When a second store appears — a `docs/todo.md`, a Hermes-local task
-  list — they drift, and the board stops being believable.
-- **Merged ≠ deployed ≠ verified.** Three distinct facts, three statuses. The
-  built-in `Item closed → Done` workflow is deliberately **off**, because on this
-  board it would be wrong.
-- **`In Monitor` asserts a monitor exists.** That's why it is separate from
-  `Deployed`. If Hermes is down, work visibly piles up in `Deployed` instead of
-  sitting in a column that implies a watch nobody is performing. This is also
-  why `Deployed` must stay reserved for things that genuinely have a signal:
-  once no-monitor work goes straight to `Done`, the depth of the `Deployed`
-  column becomes a real measure of unwatched risk. Parking a doc change there
-  dilutes exactly the signal the column exists to give.
-- **Dedup on fingerprints, never on prose.** Lexical search over descriptions
-  will file the same bug twice under two phrasings. An exact-match token won't.
-- **Declined means never again.** Without that, closing a false positive just
-  invites Hermes to re-file it, and the loop poisons the board within a week.
-- **Unmeasurable is not verified.** A low-traffic side project may never
-  exercise a path in 72 hours. "No occurrences" on a dead path proves nothing,
-  and reporting it as a pass makes the monitor decorative.
-- **Nothing leaves the board on a timer.** `Done` accumulates, and that is
-  fine — it is the history that answers "what was already tried" when something
-  recurs. It is hidden by a view filter, not archived: GitHub's auto-archive
-  cannot filter on `Status`, and the closest filter it can express
-  (`is:closed`) would archive `Deployed` items, since a merge closes the issue
-  while the ticket still awaits a monitor. Archived items also fall out of
-  `items()` by default, so archiving is how a ticket becomes invisible to both
-  `board.sh` and a fingerprint search — which breaks "declined means never
-  again". If the 50,000-item project cap ever matters, that is the point to
-  revisit it, not the length of the list.
+- **One source of truth.** Board holds state, issue holds detail, Slack is a
+  view. A second store — a `docs/todo.md`, a Hermes-local list — drifts, and the
+  board stops being believable.
+- **Merged ≠ deployed ≠ verified.** Three facts, three statuses. This is why the
+  built-in `Item closed → Done` workflow stays off.
+- **`In Monitor` asserts a resolved Sentry issue.** That's why it is separate
+  from `Deployed`: if Hermes is down, work piles up visibly rather than sitting
+  in a column implying a watch nobody performs. It is a checkable claim now — a
+  ticket is in `In Monitor` only if some Sentry issue is actually resolved and
+  armed for regression.
+- **The monitor is Sentry's, not ours.** Resolving an issue is what arms its
+  regression detection, so a ticket needs no alert of its own. Per-ticket alert
+  rules would accumulate, need pruning, and fire on top of the alert that
+  already exists.
+- **Dedup on the Sentry issue id, never on prose.** Two phrasings of one bug file
+  it twice; an exact-match marker doesn't. The marker has to be in the issue
+  **body** for this, because dedup runs at filing — a marker that appears only in
+  a deployment comment arrives several steps too late to prevent the duplicate.
+- **Declined means never again.** Otherwise closing a false positive just invites
+  Hermes to re-file it.
+- **Unmeasurable is not verified.** A ticket with no Sentry issue is closed as
+  _nothing to watch_, never as _checked_. A low-traffic project may never
+  exercise a path, and silence on a dead path proves nothing.
+- **Nothing leaves the board on a timer.** `Done` accumulates, and should — it is
+  the history that answers "what was already tried". It is hidden by a view
+  filter, not archived: archived items fall out of `items()` by default, which is
+  how a ticket goes invisible to both `board.sh` and a fingerprint search,
+  breaking "declined means never again".
 
-## The three repos differ in one way that matters
+## The repos differ in one way that matters
 
 |                             | Ships via                              | Merge → live                       |
 | --------------------------- | -------------------------------------- | ---------------------------------- |
@@ -142,50 +111,33 @@ as **nothing is left to verify**, from either route.
 | `agent-rotom`               | Cloudflare (`functions/`, `.dev.vars`) | minutes                            |
 | `jaksam`                    | Expo + app stores (`eas.json`)         | **days to weeks**, gated on review |
 
-For the first two you can usually confirm the deploy yourself. For `jaksam` you
-cannot — the release happens long after your session ended. Leave those
-`In Progress` with a comment saying it is merged and awaiting release, and Gabe
-sets `Deployed` when he ships. Do not guess.
+For the first two you can confirm the deploy yourself. For `jaksam` you cannot —
+the release happens long after your session ends. Leave those `In Progress` with
+a comment, and Gabe sets `Deployed` when he ships. Don't guess.
 
 ## What is not built yet
 
-As of 2026-09-04, honestly:
+As of 2026-09-15:
 
-- **The board, fields, statuses, and `board.sh` exist and work.**
-- **The skill is synced into `iam` (portfolio-website); `jaksam` and
-  `agent-rotom` are still pending.** One open ticket per repo covers it.
+- **The board, fields, statuses and `board.sh` work.** The skill is synced into
+  `iam` and `jaksam`; `agent-rotom` is pending.
+- **Issues reach the board by hand, not from CI.** Auto-adding needs a PAT with
+  both `repo` and `project` — the default `GITHUB_TOKEN` cannot write a
+  user-owned Project — and a broad, long-lived credential parked in CI is a bad
+  trade for saving one `board.sh add`. So **an issue filed from the web or a
+  phone is not on the board until someone adds it**, and `board.sh next` cannot
+  see it; sweep `gh issue list` against the board when picking up work. Don't
+  re-propose the workflow.
+- **Nothing on the Hermes side exists.** No monitoring jobs, no Slack wiring, no
+  resolving of Sentry issues, no cleanup pass. The design above is agreed; none
+  of it is written.
 
-- **Issues reach the board by hand, not from CI.** The per-repo
-  `project-add.yml` workflow was built for `iam` and then removed. The default
-  `GITHUB_TOKEN` cannot write a user-owned Project, so auto-adding needs a PAT;
-  and because these repos are private, that PAT needs `repo` as well as
-  `project` — `board.sh` resolves an issue to its node id with `gh issue view`
-  before it touches the board, so a project-only token fails with "Could not
-  resolve to an Issue" and never even reaches the documented 403. A broad,
-  long-lived credential parked in CI to save one `board.sh add` is a bad trade.
-  Gabe's position: run it from a workstation where `gh` is already
-  authenticated. Don't re-propose the workflow for `jaksam` or `agent-rotom`.
+So **everything you ship stops at `Deployed` and stays there**, whether or not it
+names a Sentry issue, because both onward transitions belong to Hermes. The
+column currently reads "shipped, nobody has triaged these", which is exactly
+true. Sweeping it is Gabe's until Hermes can do it, and `Deployed → Done` is an
+ordinary `board.sh set`.
 
-  This means **an issue filed on the web or from a phone is not on the board
-  until someone adds it.** `board.sh next` only sees what was added, so a
-  filed-but-unadded issue is invisible. Worth a sweep when picking up work:
-  compare `gh issue list` against the board.
-- **Nothing on the Hermes side is built.** No monitoring jobs, no fingerprinting,
-  no Slack wiring, no verification. The design above is agreed; the
-  implementation is not written.
-
-So today, in practice: **`Deployed` is a queue for a consumer that does not
-exist yet.** Anything that lands there stays there. That is the honest state of
-the system rather than a defect — the column reads as "these shipped, nobody has
-verified them", which is exactly true.
-
-This is the reason an agent may now set `Done` itself. When the guard covered
-both statuses, a ticket with nothing to monitor was indistinguishable on the
-board from one waiting on a monitor, and both sat in `Deployed` forever. Sending
-the first kind straight to `Done` keeps `Deployed` meaning something.
-
-Whatever does accumulate there is Gabe's to sweep, and that sweep no longer
-needs `BOARD_ALLOW_DOWNSTREAM=1` — `Deployed → Done` is an ordinary `board.sh
-set` now. The override's only remaining user is Hermes, for `In Monitor`.
-
-Don't write code that assumes Hermes is watching.
+Don't write code that assumes Hermes is watching, and don't resolve a Sentry
+issue yourself to simulate it — an issue resolved with no fix deployed will
+regress noisily and teach everyone to ignore the alert.
