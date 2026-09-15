@@ -117,11 +117,16 @@ For the first two you can confirm the deploy yourself. For `jaksam` you cannot �
 the release happens long after your session ends. Leave those `In Progress` with
 a comment, and Gabe sets `Deployed` when he ships. Don't guess.
 
-They differ in a second way that matters as much: **only `jaksam` reports to
-Sentry** (`gabe-shin/jaksam-backup`). `iam` has no error reporting at all — its
-#31 is open and `Blocked` — so every `iam` ticket takes the `No Sentry issue`
-branch and waits on Hermes's cleanup pass. That is the honest state, not a
-mistake to correct ticket by ticket.
+They differ in a second way that matters as much: **which of them reports to
+Sentry.** `jaksam` is `gabe-shin/jaksam-backup`, and `iam` is `gabe-shin/iam`
+as of 2026-09-15, when its #31 shipped `@sentry/react` with source maps —
+before that it had no error reporting at all and every `iam` ticket took the
+`No Sentry issue` branch by default. It no longer does: an `iam` fix that
+closes a real Sentry issue names it like any other.
+
+`agent-rotom` still has none, so every ticket there takes the second branch and
+waits on Hermes's cleanup pass. That is the honest state, not a mistake to
+correct ticket by ticket.
 
 ## What is and isn't built
 

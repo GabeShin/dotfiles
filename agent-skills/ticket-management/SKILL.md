@@ -73,15 +73,17 @@ prose link. If a ticket shipped before this contract, restate it in a new commen
 
 **On `jaksam`, add the runtime**: `Reach: runtime 1.8.0 only`. An OTA reaches one
 version's installs; the rest keep emitting the events the fix removes, which
-reads as a regression the moment the issue is resolved. Events carry the update
-id as `dist`, so those are identifiable rather than guessed.
+reads as a regression the moment the issue is resolved. That line is what lets a
+recurrence be judged rather than guessed — see step 7 of the overview.
 
 **It doesn't** — a feature, feedback, a refactor, docs. Say so in one line:
 `No Sentry issue — feature work`. Hermes closes it out at cleanup.
 
-Only `jaksam` reports to Sentry today (`gabe-shin/jaksam-backup`). In a repo with
-no error reporting every ticket takes the second branch, which is expected rather
-than an oversight.
+`jaksam` (`gabe-shin/jaksam-backup`) and `iam` (`gabe-shin/iam`) both report to
+Sentry; `agent-rotom` does not, so every ticket there takes the second branch,
+which is expected rather than an oversight. On a repo that does report, the
+branch is decided by the ticket: a fix for a real Sentry issue names it, while
+feature work, refactors and docs still say `No Sentry issue`.
 
 That is the whole contract. Don't write a monitoring spec, and **don't create a
 Sentry alert for a ticket** — the regression alert already exists, and resolving
