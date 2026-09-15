@@ -11,9 +11,9 @@ notices problems, files them, and after a fix ships checks whether the problem
 stopped. It is the only actor that can assert "verified", because it is the only
 one still watching once everyone else has moved on.
 
-**Gabe** decides: what gets built, what matters, what ships. He files tickets,
-sets priority, triages what Hermes finds, and performs the releases the other two
-cannot.
+**Gabe** decides: what gets built and what ships. He files tickets of his own,
+overrides a priority when Hermes reads it wrong, and performs the releases the
+other two cannot.
 
 **You** do the work — take an agreed ticket, implement it, get it live, hand it
 on. You are the only actor holding the diagnosis at the moment the fix ships,
@@ -31,16 +31,18 @@ an agent noting something in passing. `Source` records which.
 
 ## The lifecycle
 
-1. **Hermes finds something.** The Sentry issue id _is_ the fingerprint — a
-   stable identity for the problem, not for the prose describing it — and it
+1. **Hermes finds something in Sentry.** The Sentry issue id _is_ the fingerprint
+   — a stable identity for the problem, not for the prose describing it — and it
    searches the board for that marker. Open → bump `Occurrences` and `Last seen`,
-   stay quiet. **Declined** → nothing, ever. New → file at `Todo`,
-   `Source=hermes`, with the marker in the body.
+   stay quiet. **Declined** → nothing, ever. New → triage it, then file at
+   `Todo`, `Source=hermes`, `Priority` set, with the marker in the body.
 2. **It posts to Slack.** High priority immediately, the rest in a digest: a
    channel that pings on every finding gets muted, and a muted channel breaks the
    design at step one.
-3. **Gabe triages**, setting `Priority`. Anything you need to know goes on the
-   _issue_ — the ticket is the context surface, Slack is a view of it.
+3. **Gabe overrides** a priority Hermes read wrong, or declines the ticket
+   outright. Anything you need to know goes on the _issue_ — the ticket is the
+   context surface, Slack is a view of it. Triage is not a gate you wait for: a
+   `Todo` with a priority is already agreed work.
 4. **You claim it** at `In Progress`, implement, and get it live.
 5. **You finish** at `Deployed`, commenting either the `Sentry issue:` marker or
    one line saying there isn't one.
@@ -121,7 +123,7 @@ Sentry** (`gabe-shin/jaksam-backup`). `iam` has no error reporting at all — it
 branch and waits on Hermes's cleanup pass. That is the honest state, not a
 mistake to correct ticket by ticket.
 
-## What is not built yet
+## What is and isn't built
 
 As of 2026-09-15:
 
@@ -134,9 +136,10 @@ As of 2026-09-15:
   phone is not on the board until someone adds it**, and `board.sh next` cannot
   see it; sweep `gh issue list` against the board when picking up work. Don't
   re-propose the workflow.
-- **Hermes has started sweeping.** Its first `jaksam` pass ran 2026-09-15 and
-  moved three tickets `Deployed → Done`. Filing and Slack are still unwritten,
-  so it reads finished work rather than finding new work.
+- **Hermes files and sweeps.** It watches Sentry, triages, sets `Priority` and
+  opens the ticket itself; its first close-out pass over `jaksam` ran
+  2026-09-15 and moved three tickets `Deployed → Done`. So both ends of the
+  lifecycle are live, and a `Todo` you did not write is normal.
 
 What that pass declined to move is the clearest statement of the contract. It
 left tickets at `Deployed` when the thread never recorded the ship, and when the
