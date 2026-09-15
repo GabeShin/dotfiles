@@ -134,16 +134,19 @@ As of 2026-09-15:
   phone is not on the board until someone adds it**, and `board.sh next` cannot
   see it; sweep `gh issue list` against the board when picking up work. Don't
   re-propose the workflow.
-- **Nothing on the Hermes side exists.** No monitoring jobs, no Slack wiring, no
-  resolving of Sentry issues, no cleanup pass. The design above is agreed; none
-  of it is written.
+- **Hermes has started sweeping.** Its first `jaksam` pass ran 2026-09-15 and
+  moved three tickets `Deployed → Done`. Filing and Slack are still unwritten,
+  so it reads finished work rather than finding new work.
 
-So **everything you ship stops at `Deployed` and stays there**, whether or not it
-names a Sentry issue, because both onward transitions belong to Hermes. The
-column currently reads "shipped, nobody has triaged these", which is exactly
-true. Sweeping it is Gabe's until Hermes can do it, and `Deployed → Done` is an
-ordinary `board.sh set`.
+What that pass declined to move is the clearest statement of the contract. It
+left tickets at `Deployed` when the thread never recorded the ship, and when the
+deployment comment named no Sentry issue in marker form — including ones
+carrying a good `verify` block from the old convention. Both refusals are right:
+it cannot resolve an issue for a ship it cannot see, and it will not guess which
+issue you meant.
 
-Don't write code that assumes Hermes is watching, and don't resolve a Sentry
-issue yourself to simulate it — an issue resolved with no fix deployed will
-regress noisily and teach everyone to ignore the alert.
+So **a ticket sits at `Deployed` until its deployment comment says how it went
+live and which Sentry issue it closes** — or that it closes none.
+
+Don't resolve a Sentry issue yourself to simulate the monitor. An issue resolved
+with no fix deployed regresses noisily and teaches everyone to ignore the alert.

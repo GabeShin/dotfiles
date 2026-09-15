@@ -51,6 +51,12 @@ Once you have confirmed the change is actually live — a deployment status, a h
 on the live URL, a published release, never "a merge usually deploys" — comment
 saying which of exactly two things this ticket is, then set `Deployed`.
 
+**Leave evidence, in one line of that comment** — something a reader can check
+later, not your word for it. A web deploy: the live URL or deployment id. An
+orchestrator: the deploy and restart. `jaksam`: the EAS update group and its
+runtime, or the store release. You know it is live; the thread doesn't, and
+Hermes will not resolve a Sentry issue on a ship it cannot see.
+
 **It fixes a Sentry issue.** Name it:
 
 ```
@@ -61,6 +67,14 @@ https://gabe-shin.sentry.io/issues/<issue-id>/
 Hermes resolves that Sentry issue, moves the ticket to `In Monitor`, and Sentry's
 own regression detection does the watching. If the issue comes back, Sentry
 alerts, and Hermes returns the ticket to `Todo`.
+
+Nothing else is the marker — not a `verify` block from the old convention, not a
+prose link. If a ticket shipped before this contract, restate it in a new comment.
+
+**On `jaksam`, add the runtime**: `Reach: runtime 1.8.0 only`. An OTA reaches one
+version's installs; the rest keep emitting the events the fix removes, which
+reads as a regression the moment the issue is resolved. Events carry the update
+id as `dist`, so those are identifiable rather than guessed.
 
 **It doesn't** — a feature, feedback, a refactor, docs. Say so in one line:
 `No Sentry issue — feature work`. Hermes closes it out at cleanup.
