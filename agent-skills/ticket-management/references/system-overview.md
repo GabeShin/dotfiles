@@ -53,6 +53,21 @@ an agent noting something in passing. `Source` records which.
    already alerts on that — Hermes correlates the alert back to the ticket by its
    marker and returns it to `Todo`, reopened.
 
+**Not every recurrence is a regression** — a rule for whoever handles the alert.
+On a fleet that updates unevenly, reopen only if both hold:
+
+- the event's `release` is one the fix could reach. The ticket says
+  `Reach: runtime 1.8.0 only`, the event says `com.jaksam.app@1.8.0+90`; an event
+  on `1.7.0+37` is from an install that could never receive the fix.
+- it arrived more than ~48h after the ship. An OTA downloads on one launch and
+  applies on the next, so an install can run pre-fix code for a while after
+  publish. The `update_id` tag replaces this guess with a fact once the bundle
+  carrying the fix is out: matching id → regression, older id or `embedded` → not.
+
+Fails either → re-resolve, don't reopen. This applies to the app only. The
+orchestrator is one process whose `release` is the deployed commit, so any
+recurrence there is real.
+
 Step 7 is the payoff: the ticket ends up holding the diagnosis, the fix, the
 Sentry issue it was meant to close, and whether it stayed closed — so when the
 thing recurs in six months, it answers what was already tried.
